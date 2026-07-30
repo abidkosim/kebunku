@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>Register</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
 <body class="bg-gray-100">

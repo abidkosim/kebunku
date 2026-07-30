@@ -39,6 +39,7 @@ class Login extends Component
         ]);
 
         // KIRIM ALERT SUKSES KE FRONTEND
+        $this->dispatch('alert-success', message: 'Login berhasil, selamat datang ' . $superadmin->nama);
         $this->dispatch('login-success', nama: $superadmin->nama);
     }
 }

@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class users extends Model
+class User extends Model
 {
     protected $table = 'users';
     public $timestamps = false; // karena kamu pakai unsignedInteger, bukan timestamps()

@@ -1,5 +1,10 @@
 <div class="min-h-screen w-full flex items-center justify-center bg-slate-50 px-4 py-12">
-    <div class="w-full max-w-">
+    <div class="w-full max-w-md">
+        @if(session('sukses'))
+            <div class="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl px-4 py-3">
+                {{ session('sukses') }}
+            </div>
+        @endif
         {{-- Header --}}
         <div class="text-center mb-8">
             <div class="mx-auto w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
@@ -12,7 +17,7 @@
         </div>
 
         {{-- Card --}}
-        <div class="bg-white border border-slate-200 rounded- shadow-sm p-8">
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-8">
             <form wire:submit="login" class="space-y-5">
                 {{-- Username --}}
                 <div>
