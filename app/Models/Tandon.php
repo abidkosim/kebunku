@@ -1,0 +1,35 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Tandon extends Model
+{
+    protected $fillable = [
+        'id_kebun',
+        'nama',
+        'target_ppm',
+        'target_ph',
+        'ppm_terkini',
+        'ph_terkini',
+        'suhu_terkini',
+        'status_simulasi',
+        'status_pompa',
+        'terakhir_baca_at',
+    ];
+
+    protected $casts = [
+        'terakhir_baca_at' => 'datetime',
+    ];
+
+    public function kebun()
+    {
+        return $this->belongsTo(Kebun::class, 'id_kebun');
+    }
+
+    public function bacaans()
+    {
+        return $this->hasMany(TandonBacaan::class, 'id_tandon');
+    }
+}

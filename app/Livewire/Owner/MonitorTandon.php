@@ -1,0 +1,225 @@
+<?php
+
+namespace App\Livewire\Owner;
+
+use Livewire\Attributes\On;
+use Livewire\Component;
+use Livewire\WithPagination;
+use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Models\ActivityLog;
+use App\Models\Kebun;
+use App\Models\Tandon;
+use App\Models\TandonBacaan;
+use App\Jobs\SimulasikanTandon;
+
+class MonitorTandon extends Component
+{
+    use RequiresOwnerAuth, WithPagination;
+
+    public $search = '';
+    public $perPage = 10;
+
+    public $selectedTandonId = null;
+    public $rentangGrafik = '24jam'; // '24jam' | '7hari'
+
+    public $showModal = false;
+    public $isEditMode = false;
+    public $editId = null;
+    public $id_kebun_form, $nama_form, $target_ppm_form, $target_ph_form;
+
+    public function mount()
+    {
+        if ($redirect = $this->loadAuthenticatedOwner()) {
+            return $redirect;
+        }
+        if ($redirect = $this->requireRole(['owner'])) {
+            return $redirect;
+        }
+    }
+
+    public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+
+    #[On('echo:tandon.{owner.id},.TandonUpdated')]
+    public function segarkanOtomatis()
+    {
+        // body kosong - kehadiran event ini cukup membuat Livewire render ulang & ambil data terbaru
+    }
+
+    private function catat(string $aksi, string $keterangan): void
+    {
+        ActivityLog::catat($this->actorType, $this->actorId, $this->actorNama, $aksi, 'Monitor Tandon', $keterangan, $this->owner->id);
+    }
+
+    private function tandonQuery()
+    {
+        return Tandon::whereHas('kebun', function ($q) {
+            $q->where('id_owners', $this->owner->id);
+        });
+    }
+
+    public function viewDetail($id)
+    {
+        $tandon = $this->tandonQuery()->findOrFail($id);
+        $this->selectedTandonId = $id;
+
+        // siapkan form target inline di halaman detail (pakai method save() yang sama)
+        $this->editId = $tandon->id;
+        $this->id_kebun_form = $tandon->id_kebun;
+        $this->nama_form = $tandon->nama;
+        $this->target_ppm_form = $tandon->target_ppm;
+        $this->target_ph_form = $tandon->target_ph;
+        $this->isEditMode = true;
+    }
+
+    public function backToList()
+    {
+        $this->selectedTandonId = null;
+    }
+
+    public function openCreate()
+    {
+        $this->reset(['nama_form', 'id_kebun_form', 'editId']);
+        $this->target_ppm_form = 750;
+        $this->target_ph_form = 6.0;
+        $this->isEditMode = false;
+        $this->showModal = true;
+    }
+
+    public function openEdit($id)
+    {
+        $tandon = $this->tandonQuery()->findOrFail($id);
+        $this->editId = $tandon->id;
+        $this->id_kebun_form = $tandon->id_kebun;
+        $this->nama_form = $tandon->nama;
+        $this->target_ppm_form = $tandon->target_ppm;
+        $this->target_ph_form = $tandon->target_ph;
+        $this->isEditMode = true;
+        $this->showModal = true;
+    }
+
+    public function save()
+    {
+        $this->validate([
+            'id_kebun_form' => 'required|exists:kebun,id',
+            'nama_form' => 'required|string|max:100',
+            'target_ppm_form' => 'required|integer|min:0|max:2000',
+            'target_ph_form' => 'required|numeric|min:0|max:14',
+        ]);
+
+        // pastikan kebun yang dipilih benar-benar milik owner ini
+        $this->kebunQuery()->findOrFail($this->id_kebun_form);
+
+        if ($this->isEditMode) {
+            $tandon = $this->tandonQuery()->findOrFail($this->editId);
+            $tandon->update([
+                'id_kebun' => $this->id_kebun_form,
+                'nama' => $this->nama_form,
+                'target_ppm' => $this->target_ppm_form,
+                'target_ph' => $this->target_ph_form,
+            ]);
+            $this->catat('update', "Mengubah target tandon '{$tandon->nama}': PPM {$this->target_ppm_form}, pH {$this->target_ph_form}");
+        } else {
+            $tandon = Tandon::create([
+                'id_kebun' => $this->id_kebun_form,
+                'nama' => $this->nama_form,
+                'target_ppm' => $this->target_ppm_form,
+                'target_ph' => $this->target_ph_form,
+                'ppm_terkini' => max(0, $this->target_ppm_form - 150),
+                'ph_terkini' => max(0, $this->target_ph_form - 0.5),
+                'suhu_terkini' => 27.0,
+                'status_simulasi' => 'aktif',
+                'terakhir_baca_at' => now(),
+            ]);
+            SimulasikanTandon::dispatch($tandon->id)->delay(now()->addSeconds(5));
+            $this->catat('tambah', "Menambahkan tandon baru '{$tandon->nama}'");
+        }
+
+        $this->showModal = false;
+        $this->dispatch('alert-success', message: 'Data tandon disimpan');
+    }
+
+    public function toggleSimulasi($id)
+    {
+        $tandon = $this->tandonQuery()->findOrFail($id);
+
+        if ($tandon->status_simulasi === 'aktif') {
+            $tandon->update(['status_simulasi' => 'berhenti', 'status_pompa' => null]);
+            $this->catat('update', "Menghentikan simulasi sensor tandon '{$tandon->nama}'");
+        } else {
+            $tandon->update(['status_simulasi' => 'aktif']);
+            SimulasikanTandon::dispatch($tandon->id)->delay(now()->addSeconds(3));
+            $this->catat('update', "Mengaktifkan kembali simulasi sensor tandon '{$tandon->nama}'");
+        }
+    }
+
+    public function delete($id)
+    {
+        $tandon = $this->tandonQuery()->findOrFail($id);
+        $tandon->update(['status_simulasi' => 'berhenti']);
+        $nama = $tandon->nama;
+        $tandon->delete();
+        $this->catat('hapus', "Menghapus tandon '{$nama}'");
+        $this->dispatch('alert-success', message: 'Tandon dihapus');
+    }
+
+    private function kebunQuery()
+    {
+        return Kebun::where('id_owners', $this->owner->id);
+    }
+
+    public function render()
+    {
+        $list = $this->tandonQuery()
+            ->with('kebun')
+            ->when($this->search, function ($q) {
+                $q->where(function ($q2) {
+                    $q2->where('nama', 'like', '%'.$this->search.'%')
+                        ->orWhereHas('kebun', function ($q3) {
+                            $q3->where('nama_kebun', 'like', '%'.$this->search.'%');
+                        });
+                });
+            })
+            ->latest('id')
+            ->paginate($this->perPage);
+
+        $selected = $this->selectedTandonId
+            ? $this->tandonQuery()->with('kebun')->find($this->selectedTandonId)
+            : null;
+
+        $kebunList = $this->kebunQuery()->orderBy('nama_kebun')->get();
+
+        $logs = ActivityLog::where('id_owners', $this->owner->id)
+            ->latest('id')
+            ->limit(15)
+            ->get();
+
+        if ($selected) {
+            $mulai = $this->rentangGrafik === '7hari' ? now()->subDays(7) : now()->subDay();
+            $formatJam = $this->rentangGrafik === '7hari' ? 'd/m H:i' : 'H:i';
+
+            $bacaan = TandonBacaan::where('id_tandon', $selected->id)
+                ->where('created_at', '>=', $mulai)
+                ->orderBy('created_at')
+                ->get();
+
+            $grafik = [
+                'labels' => $bacaan->map(fn ($b) => $b->created_at->format($formatJam))->values(),
+                'ppm' => $bacaan->pluck('ppm')->values(),
+                'ph' => $bacaan->pluck('ph')->values(),
+                'suhu' => $bacaan->pluck('suhu')->values(),
+            ];
+
+            $this->dispatch('tandon-grafik-data', tandonId: $selected->id, grafik: $grafik);
+        }
+
+        return view('livewire.owner.monitor-tandon', [
+            'list' => $list,
+            'selected' => $selected,
+            'kebunList' => $kebunList,
+            'logs' => $logs,
+        ]);
+    }
+}

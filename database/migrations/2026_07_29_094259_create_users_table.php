@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('username');
             $table->string('password');
             $table->longText('alamat');
-            $table->unsignedInteger('created_at');
+            $table->timestamps();
         });
     }
 

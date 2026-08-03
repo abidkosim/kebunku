@@ -1,0 +1,445 @@
+1. kebutuhan data
+	1.superadmin
+	2.owner
+	3.user
+
+2. akses data
+	1.superadmin
+		- superadmin ada 2 akses full akses dan read only (full akses bisa melakukan semuanya dan read only hanya bisa melihat saja)
+		- superadmin dengan full akses bisa menambahkan owner
+
+	2.owner
+		- owner bisa menambahkan user
+		- owner hanya mempunya halaman login, tidak ada register (register owner oleh superadmin)
+		- owner juga mempunya dashboard untuk manage user
+		- dashboard owner meliputi
+			1. panel dashboard semua kebutuhan
+			2. management tanaman
+				-jadwal semai
+				-jadwal tanam
+				-jadwal semprot
+				-jadwal panen
+			3. pembeli
+			4. monitor tandon (kita skip dulu karena perangkat iot belum tersedia)
+			5. keuangan (pengeluaran dan pemasukan)
+			6. laporan
+			7. galeri
+
+	3.user
+		- user sendiri mempunyai 2 akses
+			1. akses 1 = jadwal semai,jadwal tanam,jadwal semprot
+			2. akses 2 = hanya bisa akses ke jadwal panen dan bisa melakukan semua aktifitas panen
+
+3. status implementasi (update otomatis)
+	1. superadmin - akses full vs read only [SELESAI - 2026-07-31]
+		- kolom "akses" (full/read_only) sudah ditambahkan ke tabel superadmins, default full
+		- superadmin baru/register otomatis dapat akses full
+		- full akses: bisa tambah/edit/hapus superadmin lain & owner (seperti biasa)
+		- read only: tombol tambah/edit/hapus disembunyikan dari tampilan, dan diblokir juga di backend (bukan cuma disembunyikan doang)
+		- read only tetap boleh edit profil sendiri (nama/username/password) di panel "Akun Saya"
+		- badge "Read Only" muncul di navbar & tabel superadmin biar kelihatan jelas
+		- dropdown pilih level akses ditambahkan di form tambah/edit superadmin
+	2. owner - login, dashboard manage user, menu dashboard (panel/tanaman/pembeli/tandon/keuangan/laporan/galeri) : BELUM
+	3. user - 2 akses (jadwal semai/tanam/semprot vs panen) : BELUM
+
+4. fitur tambahan: notifikasi aktivitas [SELESAI - 2026-07-31]
+	- tabel activity_logs dibuat generik (actor_type, actor_id, actor_nama, aksi, modul, keterangan) jadi siap dipakai lintas halaman
+	- helper ActivityLog::catat(...) tinggal dipanggil dari halaman manapun (superadmin/owner/user nanti)
+	- sudah dipasang di semua aksi tambah/update/hapus di dashboard superadmin (superadmin, owner, update profil sendiri)
+	- toggle bell/notifikasi ditaruh di navbar, persis di samping tombol dark/light mode
+	- klik toggle buka panel dropdown berisi 15 aktivitas terakhir (nama pelaku, aksi, waktu relatif)
+	- titik merah muncul di ikon bell kalau ada log
+	- catatan: panel ini refresh saat komponen dashboard re-render (bukan push realtime/websocket) - kalau nanti butuh notifikasi realtime lintas tab, perlu tambahan Laravel Echo/broadcasting
+	- untuk halaman owner & user yang belum dibuat: tinggal panggil ActivityLog::catat() di titik yang sama waktu dikembangkan
+
+5. owner - fondasi (login, dashboard shell, manajemen user) [SELESAI - 2026-07-31]
+	- halaman /owner/login dibuat, session-based (tidak pakai Laravel Auth guard, konsisten dengan pola superadmin)
+	- akun owner dibuat oleh superadmin saja (sesuai spek, tidak ada register untuk owner)
+	- dashboard owner (/owner/dashboard) - panel ringkasan: total user, placeholder tanaman/pembeli/keuangan
+	- sidebar 7 menu spek + 1 tambahan "Manajemen User": Panel, Manajemen User, Management Tanaman, Pembeli, Monitor Tandon, Keuangan, Laporan, Galeri
+	- 6 menu (tanaman/pembeli/tandon/keuangan/laporan/galeri) masih "Coming Soon" - dibuat lewat satu komponen generik biar gampang diisi belakangan
+	- Manajemen User (/owner/dashboard/user): CRUD penuh (tambah/edit/hapus), scoped ke owner yang login saja (tidak bisa lihat/edit user milik owner lain)
+	- form user sudah pakai dropdown akses 1 (semai/tanam/semprot) vs akses 2 (panen) - menyiapkan poin 3, tapi PEMBATASAN akses ke halaman jadwal itu sendiri belum ada karena halamannya belum dibuat
+	- notifikasi aktivitas (dari fitur poin 4) sudah tersambung juga di sini - semua aksi CRUD user tercatat dan muncul di toggle bell owner
+	- fix bug laten: model User sebelumnya matikan timestamps Eloquent (peninggalan dari era created_at manual) - ini akan bikin bug tanggal "1970" lagi kalau tidak diperbaiki, sudah dibetulkan
+	- refactor: CSS desain (glass-card, input-fancy, sidebar, dll) dipindah dari superadmin dashboard ke resources/css/app.css supaya bisa dipakai bareng owner tanpa duplikasi
+	- catatan: login owner "abid" (id owner #2) sempat aku set password sementara ke "preview123" untuk testing - ganti lagi kalau perlu
+	- belum: pembatasan akses halaman User (akses 1 vs akses 2) itu sendiri, dan 6 modul coming soon
+
+6. management tanaman [SELESAI - 2026-07-31]
+	- model: 1 "Tanaman" = 1 siklus/batch tanam (bukan master jenis), sesuai keputusan kamu
+	- 3 tahap tunggal per tanaman: semai, tanam, panen - otomatis dibuat saat tanaman baru ditambahkan (tanggal default hari ini, tinggal diubah)
+	- semprot bersifat berulang - bisa tambah banyak entri semprot per tanaman, masing-masing punya tanggal & status sendiri
+	- tiap jadwal (semai/tanam/semprot/panen) punya: tanggal rencana, tanggal selesai, status (belum/selesai), catatan
+	- halaman /owner/dashboard/tanaman: daftar tanaman (cari, tambah, edit, hapus) -> klik baris untuk lihat detail per-tanaman
+	- di detail: toggle "Tandai Selesai" sekali klik untuk tiap tahap, atau edit manual (ubah tanggal/catatan) lewat modal
+	- semai/tanam/panen tidak bisa dihapus (cuma diedit/toggle), semprot bisa dihapus
+	- status tanaman (Baru/Semai/Tumbuh/Panen) dihitung otomatis dari progress jadwal, bukan field manual - jadi tidak akan pernah "nyasar"/tidak sinkron
+	- data ter-scope ketat per owner (sudah dites: owner lain sama sekali tidak bisa akses/hapus tanaman milik owner lain, dapat 404)
+	- notifikasi aktivitas (poin 4) juga tersambung: tambah/update/hapus tanaman & jadwal semua tercatat
+	- untuk sekarang, YANG MENANDAI SELESAI = OWNER SAJA (sesuai keputusan kamu) - nanti kalau User/staff (poin 3) sudah dibuat, tinggal buka akses toggleSelesai() ke User dengan role yang sesuai (akses_1 untuk semai/tanam/semprot, akses_2 untuk panen)
+
+7. management tanaman - REDESIGN alur & lokasi [SELESAI - 2026-07-31]
+	Setelah diskusi lebih detail soal alur kerja nyata, model sebelumnya (semai/tanam/panen tetap) diganti total:
+
+	a. Lokasi terstruktur: Kebun + Meja
+		- tabel baru "kebun" (nama kebun per owner) dan "meja" (nomor meja per kebun)
+		- kelola dari halaman terpisah "/owner/dashboard/tanaman/kebun" - bikin kebun + jumlah meja sekaligus (meja 1..N auto-generate), bisa tambah/hapus meja individual belakangan
+		- saat tambah tanaman: pilih Kebun -> pilih Meja (dropdown otomatis cuma nampilin meja yang KOSONG di kebun itu)
+		- 1 meja = 1 tanaman aktif dalam satu waktu, sistem cegah bentrok otomatis
+		- meja otomatis bebas lagi begitu tanaman dihapus (belum ada tahap "selesai siklus" formal karena modul Panen belum dibangun - itu jadi cara sederhana bebasin meja untuk sekarang)
+
+	b. Alur pertumbuhan berbasis tahap + durasi (bukan tanggal tetap semai/tanam/panen lagi)
+		- tabel baru "tahapans": tiap tahap (semai/peremajaan/pendewasaan/panen) punya durasi rencana (hari), tanggal mulai, target selesai (dihitung otomatis = mulai + durasi), tanggal selesai aktual, status
+		- alur: Tambah Tanaman -> "Mulai Semai" (isi durasi rencana) -> Tandai Selesai -> pilihan "Lanjut ke Peremajaan" ATAU "Langsung ke Pendewasaan" (peremajaan opsional, sesuai kondisi tanaman) -> kalau lewat Peremajaan, setelah selesai lanjut otomatis ke "Mulai Pendewasaan" -> setelah Pendewasaan selesai -> status jadi "Siap Panen"
+		- tahap Panen SENGAJA BELUM dibangun (nunggu instruksi lanjutan) - begitu Pendewasaan selesai cuma muncul pesan "Siap Panen, modul Panen segera hadir"
+		- status tanaman (Baru/Sedang X/Siap Panen) dihitung otomatis dari riwayat tahap, bukan field manual
+		- semprot TETAP terpisah dari alur tahap (aktivitas berulang independen, bukan bagian urutan siklus) - tabel jadwals disederhanakan jadi khusus semprot saja (kolom "jenis" dihapus karena sudah pasti semprot)
+
+	c. Reset data
+		- 1 data tanaman uji coba lama ("selada" di lokasi teks bebas "MEJA 1") direset karena struktur lokasi berubah total dan tidak bisa dipetakan otomatis ke Kebun+Meja yang baru - perlu diinput ulang setelah bikin Kebun & Meja dulu
+
+	Belum dikerjakan (menunggu instruksi lanjutan): tahap Panen itu sendiri (disebut "agak unik" oleh owner, sengaja ditunda).
+
+8. management tanaman - tracking jumlah tanaman per tahap [SELESAI - 2026-07-31]
+	- tabel tahapans dapat 2 kolom baru: jumlah_awal (wajib diisi) dan jumlah_lolos (diisi saat tahap ditandai selesai)
+	- "Mulai Semai": sekarang wajib isi jumlah tanaman yang disemai (jumlah_awal)
+	- saat tahap ditandai selesai (semai/peremajaan/pendewasaan sama semua): muncul form "berapa yang lolos/masih hidup?" -> sistem otomatis hitung yang mati (jumlah_awal - jumlah_lolos)
+	- kartu riwayat tahap menampilkan: jumlah awal, lolos/hidup, mati, dan badge "Lengkap" (kalau tidak ada yang mati) atau "Berkurang X" (kalau ada yang mati)
+	- saat lanjut ke tahap berikutnya (peremajaan/pendewasaan), jumlah awal tahap baru OTOMATIS diwariskan dari jumlah lolos tahap sebelumnya (terkunci, tidak bisa diubah manual) - supaya rantai datanya selalu konsisten
+	- semua aksi ini (mulai tahap, tandai selesai dengan detail lolos/mati) otomatis masuk ke notifikasi aktivitas dengan keterangan lengkap, contoh: "Menyelesaikan tahap semai tanaman 'Selada': 95/100 hidup (5 mati)"
+	- validasi: jumlah yang lolos tidak boleh melebihi jumlah awal tahap itu
+	- akumulasi total selisih dari semai sampai panen (untuk laporan hasil akhir) akan dibangun bareng modul Panen nanti - datanya sudah tersimpan lengkap per tahap jadi tinggal dijumlahkan waktu itu tiba
+	- data lama (3 baris tahap tanaman "SELADA" dari sebelum fitur ini ada) di-backfill jumlah_lolos=0 supaya tampilannya tetap rapi, bukan kosong/null
+
+9. management tanaman - pagination, tombol kebun & meja, fix urutan [SELESAI - 2026-07-31]
+	- daftar tanaman sekarang default nampilin 10 data, ada selector jumlah per halaman (10/25/50/100) + tombol navigasi halaman
+	- tombol "Kebun & Meja" dirombak jadi kartu akses cepat yang lebih menarik: ikon grid, nama jelas, plus info langsung berapa kebun & berapa meja kosong yang tersedia
+	- BUG DITEMUKAN & DIPERBAIKI: query ->latest() di banyak tempat (daftar tanaman, daftar owner superadmin, daftar user, kebun, notifikasi aktivitas di semua halaman) cuma urut berdasarkan created_at yang presisinya per detik - kalau ada beberapa data dibuat dalam detik yang sama urutannya jadi tidak pasti/acak. Sudah diganti semua jadi ->latest('id') biar urutan "terbaru di atas" selalu benar dan konsisten.
+
+	CATATAN PENTING untuk pembangunan tahap Panen nanti:
+	- saat ini meja cuma bebas lagi kalau tanamannya DIHAPUS - ini kurang tepat karena artinya riwayat/histori tanaman yang sudah dipanen ikut hilang
+	- yang benar (sesuai arahan owner): begitu tahap Panen selesai, meja otomatis bebas lagi TAPI data tanaman & riwayat tahapnya harus tetap tersimpan (tidak dihapus)
+	- artinya nanti perlu ubah logika "meja terpakai" dari "ada tanaman yang mereferensikan meja ini" jadi "ada tanaman AKTIF (belum panen) yang mereferensikan meja ini" - query di KelolaKebun.php dan ManajemenTanaman.php (mejaTersedia) perlu disesuaikan saat modul Panen dibangun
+
+10. tahap panen [SELESAI - 2026-07-31]
+	Panen ternyata beda pola dari tahap lain: bukan sekali jalan, tapi transaksi berulang (tiap panen = 1 event jual-beli sendiri). Jadi dibangun terpisah dari sistem tahapan biasa, sambil tetap terhubung.
+
+	a. "Mulai Panen" - muncul begitu Pendewasaan selesai ("Siap Panen"). Beda dari tahap lain: TIDAK butuh durasi rencana (open-ended, ditutup manual). Jumlah awal tetap diwariskan otomatis dari jumlah lolos Pendewasaan.
+
+	b. Catat Panen (bisa berkali-kali selama status "Sedang Panen"):
+		- siapa yang memanen (nama bebas)
+		- pembeli (pilih dari daftar existing ATAU ketik nama baru - otomatis dibuat data pembelinya)
+		- berat panen (kg)
+		- metode pembayaran: Cash (langsung lunas), Sebagian (harga wajib diisi + nominal yang dibayar sekarang), Hutang (harga BOLEH dikosongkan dulu)
+		- kalau hutang tanpa harga, nanti dipakai tombol "Catat Bayar" - saat itu baru ditentukan harga per kilonya, dihitung otomatis totalnya, dan tercatat berapa yang dibayar vs sisa hutang
+		- tiap transaksi panen dapat status otomatis: Lunas / Sebagian / Hutang / Menunggu Harga (dihitung dari pembayaran, bukan disimpan manual - supaya tidak pernah nyasar)
+		- ringkasan di atas daftar: total berat, total pendapatan, total belum dibayar, jumlah transaksi yang masih menunggu harga
+		- akumulasi hutang per pembeli otomatis terhitung (dijumlahkan lintas semua transaksi panen ke pembeli itu)
+
+	c. "Tutup Siklus Panen" - pakai mekanisme yang sama dengan tandai-selesai tahap lain (input berapa dari jumlah awal yang benar-benar berhasil dipanen, sisanya otomatis kehitung gagal/rusak). Begitu ditutup:
+		- MEJA OTOMATIS BEBAS LAGI (sesuai permintaan) - siap dipakai tanaman baru
+		- data tanaman & seluruh riwayat tahap + transaksi panennya TETAP TERSIMPAN (tidak dihapus) - jadi histori produksi & keuangan tidak hilang
+		- status tanaman berubah jadi "Selesai (Dipanen)"
+
+	d. Semua aksi (mulai panen, catat panen, catat pembayaran, tutup siklus) otomatis masuk notifikasi aktivitas dengan detail lengkap (nominal, status pembayaran, dll)
+
+	Belum dikerjakan / catatan untuk nanti:
+	- laporan akumulasi total (across semua tanaman/kebun) belum dibuat - datanya sudah lengkap tersimpan per tanaman, tinggal dibuatkan halaman Laporan yang menjumlahkan semua
+	- menu "Pembeli" yang terpisah masih coming soon - tapi data master pembeli SUDAH aktif dipakai (dibuat otomatis dari form Catat Panen), tinggal dibuatkan halaman list/detail pembeli standalone kalau dibutuhkan
+
+11. restrukturisasi sidebar & pemisahan halaman management tanaman [SELESAI - 2026-07-31]
+	Sesuai arahan, menu "Management Tanaman" di sidebar sekarang jadi dropdown (klik untuk buka/tutup) dengan 4 halaman terpisah:
+		1. Kelola Kebun & Meja (/owner/dashboard/tanaman/kebun) - tidak berubah
+		2. Kelola Tanaman (/owner/dashboard/tanaman) - daftar tanaman + siklus semai->peremajaan->pendewasaan, BERHENTI di status "Siap Panen". Tombol "Mulai Panen" dihapus dari sini, diganti link "Kelola Panen ->" yang lompat ke halaman Panen (otomatis pilih tanamannya lewat ?tanaman=id)
+		3. Jadwal Semprot (/owner/dashboard/tanaman/semprot) - HALAMAN BARU, terpisah, nampilin semua jadwal semprot lintas tanaman dalam satu tabel (bukan lagi nempel di detail tanaman), tambah semprot tinggal pilih tanamannya dari dropdown
+		4. Panen (/owner/dashboard/tanaman/panen) - HALAMAN BARU, semua yang berhubungan dengan panen dikumpulkan di sini: Mulai Panen, Catat Panen, Catat Bayar, DAN Tutup Siklus Panen - jadi tidak perlu bolak-balik ke halaman lain lagi
+	dropdown otomatis kebuka kalau lagi di salah satu dari 4 halaman itu.
+
+	Revisi "siapa yang memanen": field manual dihapus, sekarang otomatis terisi dari NAMA AKUN YANG SEDANG LOGIN (session owner saat ini) - tidak bisa diketik bebas/dipalsukan. Field ini didesain generik supaya begitu User/staff (poin 3, akses_2) punya portal sendiri nanti, otomatis pakai nama user yang login juga, tidak perlu ubah logic lagi.
+
+	Verifikasi: 6 test (24 assertion) - keempat halaman render benar, Kelola Tanaman terbukti sudah tidak punya logic panen sama sekali (murni dipindah, bukan cuma disembunyikan), pemanen terbukti otomatis dari sesi login, ?tanaman= auto-select berfungsi, alur panen penuh + tutup siklus + bebasin meja tetap jalan di komponen baru, dan Jadwal Semprot berfungsi mandiri sebagai halaman sendiri.
+
+12. catat bayar - auto isi nominal kekurangan [SELESAI - 2026-07-31]
+	- begitu klik "Catat Bayar", nominal "Jumlah Dibayar Sekarang" otomatis terisi sebesar SISA HUTANG-nya (bukan kosong lagi) - owner tinggal klik simpan kalau mau lunasin semua
+	- ditampilkan juga info "Kekurangan yang harus dibayar: RpX" di atas form biar jelas
+	- kalau owner mau bayar sebagian saja, tinggal turunkan angkanya manual sebelum simpan
+	- untuk transaksi yang tadinya hutang tanpa harga: begitu harga per kg diisi di modal ini, nominal kekurangan otomatis kehitung & keisi juga (real-time, tidak perlu hitung manual)
+
+13. portal user/staff (teknisi & keuangan) [SELESAI - 2026-07-31]
+	Revisi dari rencana awal poin 3 (akses_1/akses_2) - sekarang pakai 2 role baru yang lebih jelas:
+		- TEKNISI: akses penuh ke semua Management Tanaman (Kebun&Meja, Kelola Tanaman, Jadwal Semprot, Panen - termasuk tutup siklus)
+		- KEUANGAN: akses ke Dashboard, Keuangan, dan Laporan saja
+
+	a. Login digabung jadi satu (/owner/login tetap dipakai bareng): form yang sama cek ke tabel owners dulu, kalau tidak ketemu baru cek ke tabel users (teknisi/keuangan). Owner masuk ke /owner/dashboard, teknisi/keuangan masuk ke /portal/dashboard.
+
+	b. Root url (127.0.0.1:8000) tetap ke halaman welcome bawaan Laravel - tidak diarahkan kemana-mana, sesuai permintaan.
+
+	c. Portal Staff (teknisi/keuangan) punya DASHBOARD & SHELL SENDIRI yang didesain mobile-first (bottom navigation bar ala app Android, bukan sidebar desktop) - komponen baru App\Livewire\Staff\Dashboard. Isi menu bottom-nav menyesuaikan role: teknisi dapat 5 menu (Beranda/Kebun/Tanaman/Semprot/Panen), keuangan dapat 3 menu (Beranda/Keuangan/Laporan).
+
+	d. Halaman Management Tanaman (Kebun&Meja, Kelola Tanaman, Jadwal Semprot, Panen) DIPAKAI BERSAMA oleh Owner & Teknisi - bukan bikin ulang. Trik: komponen Livewire yang sama, tapi shell-nya dipilih otomatis (x-dynamic-component) berdasarkan siapa yang login - Owner dapat shell desktop (sidebar), Teknisi dapat shell mobile (bottom-nav). Tidak ada duplikasi logic bisnis sama sekali.
+
+	e. Role guard: tiap komponen sekarang punya requireRole([...]) di mount() - kalau role tidak sesuai, diarahkan otomatis ke "rumah" masing-masing (bukan 403 mentah). Owner tetap bisa akses semua halaman termasuk /portal/* (shared component tidak menolak owner).
+
+	f. Sistem notifikasi (activity_logs) diperluas: kolom id_owners ditambahkan supaya aktivitas OWNER dan STAFF untuk bisnis yang sama tergabung dalam satu feed notifikasi (sebelumnya cuma bisa nampilin punya owner). actor_type sekarang beneran mencatat siapa yang beraksi (owner/teknisi/keuangan), bukan selalu "owner".
+
+	g. "Siapa yang memanen" di form Catat Panen sekarang otomatis pakai NAMA AKUN YANG LOGIN SAAT ITU (session owner ATAU teknisi) - jadi kalau teknisi yang input, namanya sendiri yang tercatat, bukan nama owner lagi.
+
+	h. Bug ditemukan & diperbaiki sekalian: semua halaman (owner, superadmin) ternyata belum punya <meta name="viewport"> - jadi kalau dibuka di HP beneran bakal ke-zoom out (dianggap desktop). Sudah ditambahkan ke semua halaman.
+
+	Verifikasi: 8 skenario test (43 assertion) - login 3 arah, role guard teknisi & keuangan, owner tetap full akses, notifikasi tergabung lintas actor, pemanen ikut sesi login, superadmin log tetap jalan. Sudah dites juga manual di browser (login sebagai teknisi_demo/demo123, tampilan mobile bottom-nav + kartu shortcut + halaman Kelola Tanaman semua tampil benar).
+
+	Belum dikerjakan: halaman Keuangan & Laporan itu sendiri masih "Coming Soon" (placeholder) - sudah bisa diakses role keuangan, tinggal diisi kontennya.
+
+14. roadmap / arah selanjutnya (dicatat 2026-07-31, belum dikerjakan)
+	Rangkuman semua yang masih terbuka dari sesi-sesi sebelumnya, supaya gampang lanjut kapan saja:
+
+	a. Halaman Laporan (saat ini masih "Coming Soon", sudah bisa diakses role Owner & Keuangan)
+		- rekap akumulasi lintas semua tanaman/kebun: total hasil panen (kg), total pendapatan, total hutang belum dibayar, tingkat kematian per tahap (semai/peremajaan/pendewasaan/panen)
+		- datanya SUDAH lengkap tersimpan (tahapans.jumlah_awal/jumlah_lolos, panens.berat_kg/harga_per_kg/jumlah_dibayar) - tinggal dibuatkan query penjumlahan + tampilan
+		- kandidat kuat dikerjakan duluan karena tidak butuh data/tabel baru sama sekali
+
+	b. Halaman Keuangan (saat ini masih "Coming Soon", sudah bisa diakses role Owner & Keuangan)
+		- ini BEDA dari pendapatan panen (yang sudah tercatat di modul Panen) - keuangan di sini soal pengeluaran & pemasukan UMUM (pupuk, bibit, gaji, listrik, dll) sesuai spek awal poin 2.5 "keuangan (pengeluaran dan pemasukan)"
+		- butuh tabel baru (belum ada) untuk catat transaksi keuangan umum, kemungkinan perlu kategori (operasional/gaji/dll)
+		- perlu diskusi detail dulu sebelum mulai: kategori apa saja, siapa yang boleh input (owner saja atau keuangan juga), apakah terhubung ke Laporan
+
+	c. Halaman Pembeli mandiri (saat ini belum ada sama sekali)
+		- data master Pembeli SUDAH aktif dipakai (otomatis dibuat dari form Catat Panen di modul Panen), tapi belum ada halaman list/detail sendiri
+		- kalau dibuat: list semua pembeli + total transaksi + total hutang per pembeli (sudah ada accessor Pembeli->total_hutang, tinggal dipakai)
+		- kandidat kedua yang gampang karena modelnya sudah lengkap, cuma butuh halaman baru
+
+	d. Monitor Tandon - SENGAJA DITUNDA (bukan lupa) karena perangkat IoT belum tersedia, sesuai keputusan owner di spek awal. Tidak perlu dikerjakan sampai hardware-nya siap.
+
+	e. Galeri - belum dikerjakan sama sekali, dokumentasi foto kebun. Prioritas paling rendah dari yang tersisa, belum ada detail kebutuhannya.
+
+	f. Hal kecil yang masih nunggu keputusan (bukan fitur baru, cuma polish):
+		- apakah role Teknisi butuh dipecah lagi jadi sub-level (misal teknisi senior vs junior)? Sekarang teknisi = akses penuh Management Tanaman, belum ada granularitas lebih lanjut. Cuma dikerjakan kalau owner minta.
+
+	Belum ada keputusan urutan resmi - di atas cuma disusun berdasarkan "mana yang paling siap dikerjakan duluan karena datanya sudah ada" (Laporan, lalu Pembeli), bukan instruksi final dari owner. Tanya owner dulu sebelum mulai salah satu.
+
+15. halaman Laporan [SELESAI - 2026-07-31]
+	Item pertama dari roadmap (poin 14a) dikerjakan atas konfirmasi owner - tidak butuh tabel baru, murni query + tampilan dari data yang sudah ada.
+	- halaman baru /owner/dashboard/laporan (owner) dan /portal/laporan (keuangan, menggantikan "Coming Soon" lama) - komponen App\Livewire\Owner\Laporan, akses role owner & keuangan (teknisi ditolak, diarahkan ke /portal/dashboard)
+	- 4 kartu ringkasan: total hasil panen (kg), total pendapatan, total belum dibayar, jumlah siklus yang sudah selesai dipanen - semua dihitung dari tabel panens & tanaman.siklus_selesai_at, scoped ketat per owner
+	- tabel "Tingkat Keberhasilan per Tahap": akumulasi jumlah_awal vs jumlah_lolos dari tabel tahapans (hanya yang sudah status selesai), dikelompokkan per jenis (semai/peremajaan/pendewasaan/panen), tampilkan jumlah hidup/mati + persen selamat dengan badge warna (hijau >=90%, kuning >=70%, merah di bawahnya)
+	- "Pembeli dengan Hutang Terbesar": top 5 dari accessor Pembeli->total_hutang yang sudah ada sejak modul Panen, tidak perlu logic baru
+	- "Rekap per Kebun": jumlah tanaman, total panen, dan total pendapatan per kebun (lintas kebun sesuai spek awal poin 2.6 "laporan")
+	- link sidebar "Laporan" (owner) & bottom-nav (keuangan) yang tadinya arahkan ke halaman "Coming Soon" sudah dialihkan ke halaman baru ini; slug "laporan" dihapus dari daftar slug ComingSoon karena sudah tidak reachable
+	- diverifikasi dengan 2 test throwaway (scoping data ketat per-owner terbukti - punya owner lain tidak ikut kehitung; role teknisi ditolak, keuangan diizinkan) - lalu dihapus sesuai konvensi
+	- BELUM saat itu: halaman Pembeli mandiri & Keuangan (poin 14b, 14c) masih seperti semula
+
+	CATATAN: owner menegur urutan pengerjaan ini - seharusnya Pembeli -> Keuangan -> baru Laporan (karena Laporan idealnya merangkum data dari keduanya), tapi Laporan keburu dikerjakan duluan. Poin 16-18 di bawah ini membereskan urutannya: Pembeli & Keuangan dibangun, lalu Laporan direvisi untuk menggabungkan data Keuangan + tambah filter periode.
+
+16. halaman Pembeli mandiri [SELESAI - 2026-07-31]
+	- halaman baru /owner/dashboard/pembeli - komponen App\Livewire\Owner\KelolaPembeli, akses OWNER SAJA (tidak seperti Laporan/Keuangan, Pembeli tidak ada di menu role Keuangan sesuai spek awal)
+	- list (cari, tambah, edit) + detail per-pembeli: kontak, total berat dibeli, total transaksi (Rp), sisa hutang, riwayat semua transaksi panen ke pembeli itu
+	- di detail, transaksi yang belum lunas dapat tombol "Catat Bayar" yang lompat ke halaman Panen (?tanaman=id) - TIDAK duplikat logic pembayaran, cuma link ke fitur yang sudah ada di modul Panen
+	- pembeli yang SUDAH punya riwayat transaksi panen tidak bisa dihapus (diblokir di backend, bukan cuma disembunyikan) - soalnya foreign key panens.pembeli_id itu cascadeOnDelete, jadi hapus pembeli asal-asalan akan ikut menghapus riwayat panen & keuangannya
+	- slug "pembeli" dihapus dari ComingSoon, link sidebar dialihkan ke halaman baru
+	- diverifikasi 2 test throwaway (scoping per-owner, proteksi hapus saat sudah ada transaksi) - lalu dihapus
+
+17. halaman Keuangan (pemasukan/pengeluaran umum) [SELESAI - 2026-07-31]
+	Keputusan desain (dikonfirmasi ke owner sebelum mulai, sesuai catatan di poin 14b):
+		- kategori TETAP (bukan bebas per-owner): Pemasukan = Modal/Investasi, Penjualan Lain-lain, Lainnya. Pengeluaran = Pupuk, Bibit, Gaji, Listrik, Perawatan/Alat, Lainnya. Dropdown kategori otomatis ganti isi sesuai jenis yang dipilih.
+		- akses input: OWNER & KEUANGAN keduanya boleh tambah/edit/hapus (bukan read-only untuk staff Keuangan)
+		- terhubung ke Laporan: YA (lihat poin 18)
+	- tabel baru "keuangan": id_owners, jenis (pemasukan/pengeluaran), kategori, jumlah, tanggal, catatan, dicatat_oleh (otomatis dari nama akun yang login, sama seperti pola "pemanen" di modul Panen - bukan input manual)
+	- halaman /owner/dashboard/keuangan (owner) dan /portal/keuangan (keuangan, menggantikan "Coming Soon" lama) - komponen App\Livewire\Owner\KelolaKeuangan
+	- filter periode (Dari - Sampai tanggal) dengan tombol cepat "Bulan Ini" / "Tahun Ini" / "Semua" - default saat buka halaman: Bulan Ini
+	- 3 kartu ringkasan sesuai periode terpilih: total pemasukan, total pengeluaran, saldo (pemasukan - pengeluaran)
+	- slug "keuangan" dihapus dari ComingSoon (karena sekarang sudah reachable via route sendiri) - trik slugUntukKeuangan di ComingSoon.php juga dibersihkan karena jadi tidak terpakai lagi (tandon & galeri saja yang tersisa di situ, keduanya owner-only)
+	- diverifikasi 4 test throwaway (scoping per-owner, validasi kategori ditolak kalau tidak cocok dengan jenisnya, role teknisi ditolak/keuangan diizinkan, filter periode menyembunyikan transaksi di luar rentang) - lalu dihapus
+
+18. revisi halaman Laporan: filter periode + gabung data Keuangan [SELESAI - 2026-07-31]
+	Menindaklanjuti masukan owner: Laporan (poin 15) tadinya belum bisa disaring per tanggal/bulan/tahun, dan belum menghitung data Keuangan (poin 17) karena waktu itu Keuangan belum ada.
+	- filter periode yang sama persis dengan halaman Keuangan (Dari-Sampai + tombol cepat Bulan Ini/Tahun Ini/Semua) ditambahkan ke Laporan - default "Semua" (beda dari Keuangan yang default "Bulan Ini") supaya rekap akumulasi lama tetap kelihatan penuh kalau owner belum pilih apa-apa
+	- filter ini diterapkan ke: transaksi panen (kolom tanggal), tahap yang selesai (kolom tanggal_selesai_aktual, untuk tabel tingkat keberhasilan per tahap), transaksi keuangan (kolom tanggal), dan jumlah siklus selesai dipanen (kolom siklus_selesai_at)
+	- SENGAJA TIDAK difilter: "Pembeli dengan Hutang Terbesar" - karena itu saldo hutang berjalan sampai sekarang, bukan aktivitas dalam suatu periode
+	- 3 kartu baru: Pemasukan Umum, Pengeluaran Umum, dan "Laba/Rugi Bersih" = (pendapatan panen + pemasukan umum) - pengeluaran umum
+	- section baru "Rekap Keuangan per Kategori": total per kategori (Pupuk, Gaji, dst) di periode terpilih, dikelompokkan dari tabel keuangan
+	- diverifikasi test throwaway: filter periode benar-benar menyaring panen & keuangan dari periode lain, dan laba/rugi bersih terhitung benar - lalu dihapus
+
+19. login Owner & Staff dipindah ke root URL [SELESAI - 2026-07-31]
+	Sebelumnya root ("/") sengaja dibiarkan halaman "welcome" bawaan Laravel (lihat poin 13b), login Owner/Staff ada di "/owner/login". Owner minta ini diganti - login harus ada di root.
+	- route "/" sekarang langsung menampilkan halaman login (nama route "owner.login" dipindah ke sini)
+	- route lama "/owner/login" masih ada tapi cuma redirect ke "/" (jaga-jaga kalau ada yang bookmark/ketik manual)
+	- semua redirect internal ke halaman login (di RequiresOwnerAuth.php: sesi tidak valid, role tidak cocok, logout) diubah dari "/owner/login" jadi "/"
+	- login Superadmin TIDAK berubah, tetap di "/superadmin/login" (permintaan ini spesifik untuk Owner & Staff saja)
+	- file resources/views/welcome.blade.php dihapus karena sudah tidak direferensikan sama sekali
+	- diverifikasi 4 test throwaway (root menampilkan form login, /owner/login redirect ke "/", akses tanpa sesi diarahkan ke "/", logout mengarahkan ke "/") - lalu dihapus
+
+20. edit profil sendiri (foto, data, password) + rapikan navbar Owner & Staff [SELESAI - 2026-07-31]
+	Owner minta: bisa edit profil sendiri (belum ada sama sekali), foto profil (belum ada kolomnya), "Manajemen User" dipindah dari sidebar ke dropdown nama, dropdown itu juga isi Logout (dipindah dari tombol terpisah), dan hal yang sama diterapkan ke halaman Staff.
+	- kolom baru "foto" (nullable) ditambahkan ke tabel owners DAN users - disk "public" sudah di-link (php artisan storage:link) supaya file bisa diakses lewat /storage/...
+	- halaman baru "Pengaturan Akun" (satu komponen dipakai bareng Owner & Staff, sama seperti pola Management Tanaman): App\Livewire\Owner\PengaturanAkun, route /owner/dashboard/akun (owner) & /portal/akun (staff)
+		- semua role (owner/teknisi/keuangan) bisa ganti: nama, username, alamat, foto (upload gambar maks 2MB), password (opsional, harus dikonfirmasi 2x kalau diisi)
+		- khusus Owner ada field tambahan "Nama Usaha" (staff tidak, karena itu milik bisnis bukan milik akun personal)
+		- validasi username unique tetap dicek (per tabel masing-masing, kecuali punya sendiri)
+		- begitu simpan, session nama (owner_nama/user_nama) ikut diupdate supaya navbar langsung berubah tanpa perlu logout-login
+	- komponen x-avatar sekarang terima prop "photo" opsional - kalau owner/user punya foto, tampilkan foto asli (bulat, object-cover); kalau tidak ada, tetap fallback ke inisial nama seperti sebelumnya (tidak ada yang berubah untuk akun yang belum upload foto)
+	- SIDEBAR OWNER: menu "Manajemen User" dihapus total dari sidebar
+	- NAVBAR OWNER: nama+avatar di kanan atas sekarang jadi tombol dropdown (klik untuk buka) isinya: Manajemen User, Pengaturan Akun, Logout - tombol Logout terpisah yang lama dihapus
+	- NAVBAR STAFF: nama+avatar di kiri atas (sebelumnya cuma teks statis) sekarang juga jadi dropdown isinya: Pengaturan Akun, Logout (tanpa Manajemen User karena itu wewenang Owner saja) - tombol Logout terpisah yang lama di kanan dihapus
+	- diverifikasi 5 test throwaway: owner update profil+foto tersimpan & ke-assert filenya benar ada di disk, ganti password berhasil (hash ke-cek), konfirmasi password tidak cocok ditolak, staff (teknisi) bisa update profil sendiri tanpa field nama_usaha, username yang sudah dipakai orang lain ditolak - lalu dihapus
+
+21. dashboard Owner & Staff dibuatkan spesifik per role (data nyata, bukan placeholder) [SELESAI - 2026-07-31]
+	Dashboard Owner sebelumnya masih placeholder ("Tanaman Aktif: 0 - Segera hadir", dst) padahal modul-modulnya (Tanaman, Pembeli, Keuangan, Laporan) sudah lama jadi. Dashboard Staff Keuangan juga kosong sama sekali (cuma 2 kartu shortcut, tanpa angka apapun).
+	- Dashboard OWNER: 4 kartu sekarang pakai data nyata - Total User, Tanaman Aktif (belum tutup siklus), Pembeli (jumlah + info "Rp X belum dibayar" kalau ada hutang jalan), Laba/Rugi Bulan Ini (pendapatan panen bulan ini + pemasukan umum bulan ini - pengeluaran umum bulan ini, dari tabel keuangan). Ditambah 4 kartu shortcut (Kelola Tanaman, Pembeli, Keuangan, Laporan) supaya owner tidak perlu buka sidebar dulu.
+	- Dashboard STAFF - TEKNISI: tidak berubah (sudah cukup spesifik sebelumnya - Tanaman Aktif, Siap Panen, + 4 shortcut Tanaman/Semprot/Panen/Kebun).
+	- Dashboard STAFF - KEUANGAN: ditambah 2 kartu baru - Saldo Bulan Ini (pemasukan umum - pengeluaran umum bulan berjalan) dan Belum Dibayar (akumulasi sisa hutang panen semua pembeli) - plus notice kalau ada transaksi panen yang masih "menunggu harga ditentukan" (informasi saja, TIDAK dikasih link karena Keuangan tidak punya akses ke halaman Panen - itu wewenang Teknisi/Owner).
+	- diverifikasi 3 test throwaway (owner dashboard tampilkan angka nyata bukan lagi teks "Segera hadir", staff keuangan tampilkan saldo & hutang & notice menunggu harga, staff teknisi tidak berubah) - lalu dihapus
+
+22. dashboard Owner & Staff Keuangan ditambah detail ala-Laporan, dikunci ke bulan berjalan [SELESAI - 2026-07-31]
+	Owner minta detail dashboard lebih lengkap (seperti halaman Laporan) tapi TANPA filter tanggal manual seperti di Laporan - dashboard harus selalu otomatis nunjukin bulan berjalan saja.
+	- Dashboard OWNER, section baru "Detail Laporan Bulan Ini ({{ bulan tahun berjalan }})" + link "Laporan Lengkap ->" ke halaman Laporan:
+		- kartu breakdown: Hasil Panen (kg), Pendapatan Panen, Pemasukan Umum, Pengeluaran Umum - semua bulan berjalan (sebelumnya cuma ada "Laba/Rugi Bulan Ini" tanpa rincian)
+		- mini tabel "Tingkat Keberhasilan per Tahap" - sama seperti di Laporan tapi cuma tahap yang selesai BULAN INI (query tanggal_selesai_aktual dikunci ke bulan+tahun sekarang, bukan input dari user)
+	- Dashboard STAFF KEUANGAN, section baru "Ringkasan {{ bulan tahun }}" + link "Laporan Lengkap ->":
+		- "Saldo Bulan Ini" diganti jadi "Laba/Rugi Bulan Ini" (pendapatan panen + pemasukan umum - pengeluaran umum) biar konsisten definisinya dengan punya Owner & dengan Laporan - sebelumnya cuma pemasukan-pengeluaran umum saja, tidak ikut hitung pendapatan panen
+		- kartu baru: Pendapatan Panen, Pemasukan Umum, Pengeluaran Umum (rincian, bukan cuma angka gabungan)
+		- list baru "Kategori Terbesar Bulan Ini" - top 4 kategori keuangan (pemasukan+pengeluaran digabung, diurutkan nominal terbesar) bulan berjalan
+	- SEMUA angka di dashboard dikunci ke whereMonth/whereYear(now()) di level query - tidak ada UI filter periode di dashboard (beda dengan halaman Laporan yang punya tombol Bulan Ini/Tahun Ini/Semua) - kalau mau lihat periode lain, tetap harus buka halaman Laporan
+	- diverifikasi 2 test throwaway (data bulan lalu terbukti tidak ikut masuk ke dashboard Owner maupun dashboard Keuangan, cuma data bulan berjalan yang muncul) - lalu dihapus
+
+23. halaman Galeri (foto/video kebun) [SELESAI - 2026-07-31]
+	Item terakhir dari roadmap awal (poin 14e) - upload & lihat dokumentasi foto/video kebun, bisa diakses SEMUA role (owner, teknisi, keuangan), dengan aturan hak edit/hapus yang beda per role sesuai arahan owner:
+		- OWNER: bisa edit & hapus SIAPAPUN yang upload (foto/video milik owner, teknisi, ATAU keuangan)
+		- TEKNISI & KEUANGAN: bisa LIHAT semua foto/video dari siapapun (owner/teknisi/keuangan), tapi cuma bisa EDIT/HAPUS punya sendiri - punya orang lain (termasuk punya owner) tidak bisa diapa-apakan
+	- tabel baru "galeri": id_owners, jenis (foto/video - dideteksi OTOMATIS dari mime type file yang diupload, bukan dipilih manual), file (path storage), keterangan (opsional), actor_type/actor_id/actor_nama (siapa yang upload, pola sama seperti activity_logs - snapshot nama supaya riwayat tetap utuh walau akun pengunggah nanti diubah/dihapus)
+	- halaman /owner/dashboard/galeri (owner) dan /portal/galeri (teknisi & keuangan, ditambahkan ke bottom-nav kedua role) - komponen App\Livewire\Owner\KelolaGaleri
+	- tampilan grid thumbnail (foto asli / video dengan overlay ikon play), klik buka lightbox berisi foto/video ukuran penuh + nama pengunggah + waktu relatif + keterangan
+	- tombol Edit Keterangan & Hapus di lightbox CUMA muncul kalau bolehKelola() mengizinkan - dan validasi izin ini diulang lagi di backend (bukan cuma disembunyikan di UI) supaya tidak bisa diakali lewat request langsung ke method Livewire
+	- upload maks 12MB (batas default Livewire temporary upload), format JPG/PNG/GIF/WEBP untuk foto, MP4/MOV/AVI/WEBM untuk video
+	- hapus item ikut menghapus file fisiknya dari disk (Storage::delete), bukan cuma baris database
+	- slug "galeri" dihapus dari ComingSoon (sudah tidak reachable), sidebar Owner & bottom-nav Staff dialihkan ke halaman baru
+	- diverifikasi 3 test throwaway: ketiga role bisa akses+lihat+upload (termasuk auto-deteksi jenis video vs foto dari mime), owner bisa edit/hapus punya siapapun, staff (teknisi & keuangan) DITOLAK di backend saat coba hapus punya orang lain tapi berhasil hapus punya sendiri - lalu dihapus
+
+	Dengan ini, SEMUA item dari roadmap awal (poin 2 spek: panel/tanaman/pembeli/tandon/keuangan/laporan/galeri) sudah selesai kecuali Monitor Tandon (sengaja ditunda, nunggu hardware IoT).
+
+24. perbaikan upload/preview Galeri + proses background pakai Queue/Job [SELESAI - 2026-07-31]
+	Owner laporkan upload & preview foto/video di Galeri belum bisa. Ditemukan bug nyata + sekalian dipindah ke proses background sesuai permintaan.
+	- BUG DITEMUKAN: format video .webm tidak ada di daftar "preview_mimes" bawaan Livewire (config/livewire.php) - kalau user pilih file .webm, live-preview sebelum submit di modal upload akan CRASH (FileNotPreviewableException) dan bikin seluruh modal error. Diperbaiki dengan menambahkan 'webm' ke daftar tsb, DAN menambahkan pengecekan isPreviewable() dulu sebelum coba tampilkan preview - kalau formatnya memang tidak didukung Livewire untuk preview, tampilkan pesan "Preview belum tersedia untuk format ini, tapi tetap bisa diunggah" alih-alih crash.
+	- Ekstensi PHP GD ternyata BELUM AKTIF di XAMPP (ada file php_gd.dll tapi baris "extension=gd" di php.ini masih dikomentari) - diaktifkan, lalu restart php artisan serve supaya kepakai (edit php.ini butuh restart proses PHP untuk kebaca ulang).
+	- Proses background (sesuai permintaan "pakai queue+job+background processing"): QUEUE_CONNECTION sudah "database" dari awal, tabel jobs/failed_jobs juga sudah ada dari migrasi bawaan Laravel - tinggal dipakai.
+		- tabel "galeri" dapat 2 kolom baru: "thumbnail" (path thumbnail hasil resize, nullable) dan "status" (ready/processing/failed, default ready)
+		- job baru App\Jobs\BuatThumbnailGaleri: dijalankan di background setelah upload FOTO (bukan video, video tidak diproses karena butuh ffmpeg yang tidak ada) - resize ke maks 600x600px pakai GD native (imagecreatefromstring, imagecopyresampled, imagejpeg), simpan ke galeri/thumbs/, update kolom thumbnail+status
+		- alur upload sekarang: file asli langsung dipindah ke storage (cepat, request tidak nunggu resize) -> baris galeri dibuat dengan status "processing" -> job di-dispatch ke queue -> Livewire request selesai & balik ke user SEKETIKA, tidak menunggu proses resize selesai
+		- grid galeri pakai thumbnail (kalau sudah ada) untuk foto, fallback ke file asli kalau thumbnail belum/tidak jadi - jadi foto tetap kelihatan meski belum diproses, cuma belum dioptimasi ukurannya
+		- badge "Memproses" (dengan ikon spinner) muncul di foto yang masih status processing; halaman auto-refresh tiap 3 detik (wire:poll) SELAMA masih ada item yang diproses, biar badge hilang & thumbnail muncul otomatis tanpa reload manual
+		- kalau resize gagal (file corrupt/format tidak didukung GD), status jadi "failed" - foto tetap bisa dilihat penuh (pakai file asli), cuma tidak ada thumbnail optimasi, tidak bikin sistem error
+		- video ditandai thumbnail dengan trik "#t=0.1" di src supaya browser render frame pertama sebagai preview grid tanpa perlu proses ekstraksi frame di server (tidak ada ffmpeg)
+		- lightbox video sekarang autoplay+muted (autoplay dengan suara sering diblokir browser, muted selalu diizinkan - user tinggal unmute manual lewat kontrol video)
+	- PENTING buat yang jalanin dev server: sekarang butuh DUA proses jalan bareng - "php artisan serve" (web server) DAN "php artisan queue:work" (worker pemroses job) - kalau queue:work tidak jalan, upload foto akan macet selamanya di status "processing" karena tidak ada yang mengerjakan job-nya. Sudah dites langsung end-to-end (dispatch job manual lewat tinker sambil queue:work jalan di background, job selesai diproses 151ms, thumbnail benar-benar ke-generate) - bukan cuma tes unit.
+	- diverifikasi 5 test throwaway: upload foto dispatch job & status processing (Queue::fake), upload video TIDAK dispatch job & langsung ready, job beneran generate thumbnail asli & update status ready, job gagal dengan baik (status failed, tidak crash) kalau file bukan gambar valid, hapus item ikut hapus file asli+thumbnail dari disk - lalu dihapus
+	- CATATAN SCOPE: permintaan "semua proses pakai queue+job" ditafsirkan sebagai "seluruh alur upload Galeri" (sesuai konteks laporan bug), BUKAN merombak semua fitur lain (Panen/Keuangan/dll) jadi queued job - itu di luar scope masalah yang dilaporkan dan berisiko tinggi untuk fitur yang sudah stabil.
+
+25. BUG ASLI ditemukan & diperbaiki: upload Galeri masih gagal walau item 24 sudah "selesai" [SELESAI - 2026-07-31]
+	Owner minta dicoba langsung ("saya akan lihat di sebelah kanan") karena upload/preview MASIH belum bisa meski poin 24 sudah menyatakan selesai. Dibuka beneran di browser (bukan cuma tes PHPUnit) pakai route diagnostik sementara (session login langsung tanpa ketik password - dihapus lagi setelah selesai) + simulasi pilih file lewat JavaScript (DataTransfer API, karena tool browser tidak punya kemampuan pilih file asli).
+	- root cause: method PHP untuk proses upload dinamai "upload()", DAN dipanggil dari Blade lewat wire:submit="upload". Ternyata "upload" adalah NAMA RESERVED di proxy $wire milik Livewire sendiri (dipakai untuk $wire.upload() - fungsi bawaan JS buat handle file upload)! Akibatnya saat form disubmit, Livewire salah mengira ini panggilan ke fungsi upload BAWAAN-nya sendiri (bukan method PHP custom), lalu crash di JS: "TypeError: Cannot read properties of undefined (reading 'name')" di UploadManager.startUpload.
+	- kenapa tidak ketauan dari test PHPUnit sebelumnya (poin 24)? Karena Livewire::test()->call('upload') di PHPUnit MEMANGGIL METHOD PHP LANGSUNG, tidak lewat mekanisme wire:submit di browser sama sekali - jadi bug collision nama JS ini sama sekali tidak akan pernah ketahuan lewat tes PHPUnit, cuma ketahuan kalau dites di browser sungguhan.
+	- fix: method di App\Livewire\Owner\KelolaGaleri.php di-rename dari upload() jadi simpanUpload(), wire:submit di blade disesuaikan jadi wire:submit="simpanUpload". Sudah dicek juga tidak ada method lain di seluruh app/Livewire yang kepakai nama reserved Livewire lainnya (get, set, call, watch, commit, entangle, dispatch*, removeUpload, cancelUpload, uploadMultiple, dst).
+	- diverifikasi LANGSUNG di browser sungguhan setelah fix: pilih file -> preview muncul saat masih di modal -> submit -> tidak ada error -> item muncul di grid dengan thumbnail hasil job background -> buka lightbox (nama pengunggah, waktu, tombol Edit/Hapus muncul karena login sebagai Owner) -> hapus via tinker untuk bersihkan data uji.
+	- PELAJARAN PENTING: kalau nambah method Livewire baru, HINDARI nama yang bentrok dengan daftar reserved $wire: get, set, refs, call, hook, watch, dirty, effect, commit, errors, island, upload, entangle, dispatch, intercept(Action/Message/Request), dispatchTo/Self/El/Ref, removeUpload, cancelUpload, uploadMultiple. Livewire::test() TIDAK BISA mendeteksi bentrokan nama seperti ini karena tidak lewat jalur JS $wire sama sekali - untuk fitur yang melibatkan file upload/interaksi JS khusus, verifikasi manual di browser sungguhan tetap diperlukan, tes PHPUnit saja tidak cukup.
+
+26. Galeri auto-update real-time pakai Laravel Reverb (WebSocket) - tanpa polling, tanpa refresh [SELESAI - 2026-07-31]
+	Owner masih lapor: "preview tidak tampil" + "data baru di database tidak otomatis muncul di Galeri". Diminta metode yang "powerful", bukan refresh page. Dicoba langsung di 2 tab browser sekaligus (simulasi 2 orang beda sesi) untuk verifikasi asli, ditemukan 3 bug sekaligus - bukan cuma 1 fitur baru yang perlu dibangun.
+
+	a. Setup Laravel Reverb (WebSocket server resmi Laravel, self-hosted, tidak butuh layanan pihak ketiga):
+		- composer require laravel/reverb, generate kredensial app (REVERB_APP_ID/KEY/SECRET) otomatis ke .env
+		- BROADCAST_CONNECTION diubah dari "log" jadi "reverb"
+		- REVERB_HOST diset ke IP LAN (192.168.1.16) bukan "localhost", supaya HP yang akses lewat WiFi juga bisa connect ke WebSocket-nya (browser bakal connect ke IP itu, bukan cuma ke PC-nya sendiri)
+		- npm install laravel-echo pusher-js, dibuat resources/js/echo.js (window.Echo diinisialisasi dengan broadcaster 'reverb'), di-import di app.js
+		- SEKARANG BUTUH PROSES KE-3 selain "php artisan serve" dan "php artisan queue:work": "php artisan reverb:start --host=0.0.0.0 --port=8080" - kalau ini mati, fitur auto-update berhenti (tapi halaman Galeri sendiri tetap jalan normal, cuma tidak auto-refresh)
+		- kemungkinan perlu buka port 8080 juga di Windows Firewall (sama seperti port 8000 sebelumnya) supaya HP bisa connect WebSocket-nya - user perlu jalankan sendiri New-NetFirewallRule untuk port 8080
+
+	b. Event App\Events\GaleriUpdated (ShouldBroadcastNow, broadcast ke channel publik "galeri.{id_owners}", payload cuma ownerId - sengaja tidak bawa data asli, biar tidak ada informasi bisnis bocor lewat channel publik; data sebenarnya tetap diambil lewat request Livewire yang sudah terautentikasi). Dipancarkan dari KelolaGaleri (setelah upload/edit keterangan/hapus) DAN dari BuatThumbnailGaleri (setelah job selesai atau gagal) - jadi begitu ada perubahan APAPUN dari SIAPAPUN (termasuk thumbnail yang baru selesai diproses di background), semua browser yang lagi buka Galeri untuk owner yang sama auto-update dalam hitungan detik.
+
+	c. Livewire listen pakai atribut #[On('echo:galeri.{owner.id},.GaleriUpdated')] di method segarkanOtomatis() (body kosong - cukup "dibangunkan", Livewire otomatis render ulang & ambil data terbaru). wire:poll.3s yang dipakai sementara di poin 24 SUDAH DIHAPUS TOTAL, diganti mekanisme broadcast murni sesuai permintaan "jangan pakai refresh page".
+
+	d. BUG #2 yang ketemu waktu proses debug ini: broadcastAs() di GaleriUpdated return nama pendek "GaleriUpdated" (tanpa namespace), tapi listener Livewire tanpa titik di depan ("echo:...,GaleriUpdated") otomatis nunggu nama LENGKAP "App\Events\GaleriUpdated" - jadi walau broadcast sukses terkirim (kelihatan di log debug Reverb), Livewire di browser tidak pernah menangkapnya karena nama event tidak cocok. Fix: tambahkan titik di depan nama event di listener ("echo:galeri.{owner.id},.GaleriUpdated") - titik di depan artinya "jangan tempelkan namespace, pakai nama persis segini". PELAJARAN: kalau broadcastAs() dikustom ke nama pendek, listener sisi Echo/Livewire WAJIB pakai titik di depan, atau sebaliknya biarkan broadcastAs() default (nama lengkap class) tanpa titik di listener.
+
+	e. BUG #3 yang ketemu: video (.mov) di grid gagal load berulang-ulang (net::ERR_ABORTED di network tab) karena elemen <div> per-item di @forelse TIDAK PUNYA wire:key. Tanpa wire:key, Livewire mencocokkan elemen DOM berdasarkan POSISI, bukan identitas - begitu ada upload baru masuk ke urutan teratas (query latest('id')), semua item lain "bergeser" posisi, bikin Livewire mengira elemen video di posisi itu berubah dan me-recreate-nya dari nol, memutus request loading video yang sedang berjalan. Fix: tambahkan wire:key="galeri-item-{{ $item->id }}" ke div pembungkus tiap item - sekarang Livewire tau persis elemen mana yang benar-benar sama walau posisinya geser, jadi video/foto yang tidak berubah TIDAK di-reload paksa. Ini sekaligus menjelaskan kenapa "preview tidak tampil" dilaporkan berulang - foto/video SEBENARNYA bisa dirender (sudah kebuktian tampil untuk beberapa item), tapi video sering gagal muncul karena keburu di-abort tiap kali ada render ulang (yang jadi makin sering justru gara-gara fitur real-time baru ini kalau wire:key tidak dibetulkan bareng).
+
+	f. Diverifikasi end-to-end SUNGGUHAN pakai 2 tab browser terpisah (login sebagai owner yang sama di keduanya via route diagnostik sementara, dihapus lagi setelah selesai): upload foto asli (bikin gambar lewat Canvas API di JS, bukan cuma file kosong) di Tab 1 -> dalam ~1 detik Tab 2 otomatis menampilkan item baru itu di posisi teratas TANPA refresh, tanpa aksi apapun di Tab 2. Video .mov yang sebelumnya selalu abort, sekarang berhasil load sempurna (dicek network tab, tidak ada lagi net::ERR_ABORTED).
+	- diverifikasi juga 3 test throwaway: upload/edit/hapus semua memancarkan GaleriUpdated dengan ownerId benar, job thumbnail sukses ikut memancarkan event, elemen grid punya wire:key yang benar - lalu dihapus.
+
+=====================================================================
+27. Galeri: progress bar upload, limit file naik ke 50MB, 1 bug lagi ditemukan [SELESAI - 2026-08-01]
+=====================================================================
+Owner minta progress bar kelihatan pas upload Galeri, dan limit file dinaikkan ke 50MB (sebelumnya 12MB, batas bawaan Livewire).
+
+	a. Limit 50MB diterapkan di 3 tempat sekaligus (kalau cuma 1-2 tempat, upload besar tetap ketolak duluan sebelum sampai ke tempat yang sudah dinaikkan):
+		- config/livewire.php: "temporary_file_upload.rules" (sebelumnya null = default bawaan Livewire 12MB) diset eksplisit ke ['required','file','max:51200'] (51200 KB = 50MB) - ini yang PALING PENTING karena inilah yang membatasi upload SEBELUM sempat sampai ke validasi component
+		- App\Livewire\Owner\KelolaGaleri::simpanUpload() - validasi 'max:12288' diganti 'max:51200'
+		- php.ini lokal (XAMPP): upload_max_filesize & post_max_size dinaikkan dari 40M ke 60M (harus LEBIH BESAR dari batas aplikasi 50MB, karena ada overhead multipart/form-data) - butuh restart "php artisan serve" biar kebaca (PHP cuma baca php.ini saat proses start, sama seperti kasus ekstensi GD sebelumnya)
+
+	b. Progress bar upload ditambahkan di modal Unggah - pakai event bawaan Livewire (livewire-upload-start/progress/finish/error/cancel) yang ditangkap Alpine.js (x-data lokal di modal: uploading, progress) buat render bar isian + persentase teks, dan tombol "Unggah" (submit) otomatis disable selama file masih proses transfer.
+
+	c. BUG DITEMUKAN (yang ketiga di modul Galeri, pola yang sama terus - nama yang "kelihatan aman" ternyata reserved di suatu layer framework): pertama coba tulis listener Alpine pakai shorthand "@livewire-upload-start.window=...". INI BENTROK DENGAN BLADE, bukan Livewire/JS kali ini - Blade punya directive asli bernama "@livewire(...)" (buat render komponen Livewire), dan Blade salah mengira "@livewire-upload-start" adalah pemanggilan directive itu (mengabaikan "-upload-start" di belakangnya), lalu coba compile jadi kode render komponen tanpa nama yang valid -> ArgumentCountError ("Too few arguments... 0 passed... at least 1 expected") setiap kali modal upload dibuka. Fix: ganti SEMUA shorthand "@livewire-upload-*" jadi bentuk panjang "x-on:livewire-upload-*" (x-on: bukan huruf "@" sehingga tidak disalahartikan Blade sebagai directive).
+		PELAJARAN TAMBAHAN untuk daftar nama-nama bahaya di project ini: JANGAN PERNAH pakai shorthand Alpine "@nama-event" kalau nama-event itu DIAWALI kata yang sama dengan directive Blade asli manapun (paling sering kepakai: "@livewire", tapi waspada juga "@if"/"@auth"/"@can" dst kalau kebetulan nama custom event kita mulai dengan kata-kata itu) - selalu pakai "x-on:nama-event" di project Livewire+Blade+Alpine kalau ragu, lebih aman dan tidak ada downside.
+	d. Diverifikasi LANGSUNG di browser sungguhan (bukan cuma PHPUnit, karena ini murni perilaku JS/Blade compile-time yang tidak akan ketahuan dari test biasa): buka modal upload -> pilih file lewat simulasi -> event livewire-upload-start/progress/finish semua tertangkap benar di console (dicek lewat window event listener manual), tidak ada error, submit sukses, item baru muncul di grid.
+	- diverifikasi juga 2 test throwaway: file persis 51200 KB (50MB) diterima, file 51201 KB ditolak validasi - lalu dihapus.
+	- Karena komponen Galeri sama persis dipakai Owner maupun Staff (Keuangan/Teknisi) lewat pola shell dinamis yang sudah ada, perbaikan ini otomatis berlaku buat ketiga role sekaligus - tidak perlu ubah apa-apa terpisah per role.
+
+=====================================================================
+28. Monitor Tandon dibangun [SELESAI - 2026-08-01]
+=====================================================================
+Modul terakhir yang tersisa dari spek awal (poin 2.4/14d), sebelumnya sengaja ditunda karena IoT belum ada. Owner minta dikerjakan sekarang dengan data dummy dulu. 5 kebutuhan: sensor TDS/pH/suhu (dummy), auto dosing ppm & ph, set target ppm & ph, relasi ke tiap tandon, dan queue+job untuk data realtime.
+
+	a. Tabel baru "tandons": id_kebun (FK ke kebun, cascade delete - jadi 1 kebun bisa punya banyak tandon), nama, target_ppm (default 750), target_ph (default 6.0), ppm_terkini/ph_terkini/suhu_terkini (nullable sebelum ada pembacaan pertama), status_simulasi (aktif/berhenti - buat pause/resume manual), status_pompa (null/nutrisi/ph_up/ph_down - indikator aksi dosing terakhir), terakhir_baca_at. Model Tandon belongsTo Kebun, Kebun dapat relasi baru tandons().
+
+	b. Simulasi sensor + auto-dosing: App\Jobs\SimulasikanTandon - job yang men-DISPATCH DIRINYA SENDIRI LAGI dengan delay(8 detik) di akhir handle(), jadi rantainya terus hidup selama "php artisan queue:work/listen" jalan - tidak butuh proses scheduler terpisah, persis sesuai permintaan "pakai queue worker+job". Tiap tick: ppm/ph/suhu di-random-walk kecil (simulasi drift alami sensor asli - ppm perlahan turun karena "diserap tanaman", ph/suhu goyang acak kecil), lalu dicek terhadap target: kalau ppm di bawah target-toleransi(30) -> auto tambah nutrisi (ppm naik, dicatat ke activity_logs pakai actor_type 'sistem'); kalau ph di bawah/atas target±toleransi(0.2) -> auto pH Up/Down. Toleransi & jeda antar-tick di-hardcode sebagai constant di job (bukan kolom baru di DB) - tidak diminta bisa dikonfigurasi, jadi tidak dibuat form-nya.
+
+	c. Realtime: App\Events\TandonUpdated (ShouldBroadcastNow, channel publik "tandon.{id_owners}", payload cuma ownerId - pola identik dengan GaleriUpdated) dipancarkan tiap job selesai 1 tick. Livewire App\Livewire\Owner\MonitorTandon listen lewat #[On('echo:tandon.{owner.id},.TandonUpdated')] (method kosong, cukup memicu render ulang). Owner buka halaman -> angka PPM/pH/suhu di kartu tandon otomatis berubah tiap ~8 detik TANPA refresh - sudah dites end-to-end di browser sungguhan.
+
+	d. BUG ditemukan & diperbaiki (baru, bukan pengulangan dari daftar bug Galeri): broadcast TandonUpdated() awalnya bisa gagal (Reverb tidak terjangkau/error jaringan apapun) DAN error itu terjadi DI TENGAH handle(), SEBELUM baris self::dispatch(...)->delay(...) sempat jalan - akibatnya satu kali gagal broadcast = seluruh rantai simulasi mati permanen (job masuk failed_jobs, tidak pernah redispatch lagi). Fix: urutan dibalik - self::dispatch() dipanggil DULU, baru broadcast dibungkus try/catch (gagal broadcast cuma di-log warning, tidak menghentikan rantai). Pelajaran: untuk pola "job redispatch dirinya sendiri", baris redispatch harus selesai duluan sebelum operasi apapun yang bisa gagal (broadcast/API luar/dll), supaya kegagalan di langkah lain tidak pernah mematikan rantainya.
+
+	e. BUG lingkungan ditemukan sekalian: REVERB_HOST di .env masih IP LAN lama (192.168.1.16, dari sesi Galeri realtime sebelumnya) padahal IP komputer sekarang sudah berubah jadi 192.168.1.3 (dicek via ipconfig/Get-NetIPAddress) - ini yang bikin broadcast timeout di awal. Diupdate ke IP yang benar. CATATAN PENTING: IP LAN ini bisa berubah lagi kapan saja (DHCP) - kalau fitur realtime (Galeri ATAU Tandon) tiba-tiba berhenti auto-update padahal 3 proses background jalan semua, cek dulu apakah REVERB_HOST di .env masih cocok dengan IP LAN aktif saat itu sebelum curiga ke hal lain. Setelah ubah .env, WAJIB restart proses "queue:work/listen" dan "reverb:start" (dan rebuild "npm run build" kalau mau versi production ikut update) - env cuma dibaca ulang saat proses start, sama seperti kasus GD extension & php.ini sebelumnya.
+
+	f. Halaman /owner/dashboard/tandon (owner-only, sama seperti sebelumnya saat masih "Coming Soon") - App\Livewire\Owner\MonitorTandon. List kartu per tandon (PPM/pH/suhu + badge warna hijau/kuning tergantung dalam toleransi atau tidak, badge "Live"/"Berhenti", badge aksi dosing kalau lagi jalan) dengan tombol toggle mulai/hentikan simulasi per tandon, tombol Target (buka modal edit nama/kebun/target), tombol hapus. Klik kartu -> detail view dengan form ubah target inline + info pompa aktif. Tambah tandon: pilih kebun (dropdown kebun milik owner itu saja, divalidasi juga di backend) + nama + target awal - begitu disimpan, ppm/ph awal di-set di bawah target (biar auto-dosing langsung kelihatan kerja) dan job simulasi pertama langsung di-dispatch.
+
+	g. Dengan ini SEMUA menu dari spek awal (poin 2: panel/tanaman/pembeli/tandon/keuangan/laporan/galeri) benar-benar selesai dibangun, termasuk Monitor Tandon yang terakhir. Komponen App\Livewire\Owner\ComingSoon beserta view & route generiknya (/dashboard/{slug}) DIHAPUS karena tandon adalah satu-satunya slug yang masih memakainya - tidak ada lagi modul yang butuh placeholder "coming soon".
+
+	h. Diverifikasi LANGSUNG di browser sungguhan (bukan cuma baca kode): tambah tandon -> ppm/ph mulai di bawah target -> tunggu beberapa tick -> auto-dosing jalan berkali-kali sampai nilai konvergen ke target (terverifikasi ppm 600->751, ph 5.5->6.0) -> browser auto-update angka tanpa refresh manual (dikonfirmasi 2x, termasuk setelah fix bug broadcast) -> toggle hentikan simulasi -> dikonfirmasi tidak ada tick baru sama sekali (terakhir_baca_at berhenti berubah) -> toggle mulai lagi -> dikonfirmasi tick lanjut lagi -> ubah target lewat modal -> dikonfirmasi tersimpan tanpa mengganggu data lain. Data uji ("Tandon A") dan activity_logs terkait dihapus lagi setelah verifikasi, sama seperti konvensi pembersihan test data di modul-modul sebelumnya. Route diagnostik sementara (/_qa_login/{id}) juga sudah dihapus.
+
+	CATATAN untuk nanti kalau hardware IoT beneran sudah siap: cukup ganti App\Jobs\SimulasikanTandon supaya BACA dari sensor asli (MQTT/HTTP endpoint/dll) alih-alih random_int(), dan ganti logika "auto dosing" dari sekadar update angka jadi benar-benar mengirim perintah ke relay/pompa fisik - struktur data (tandons table), event realtime (TandonUpdated), dan halaman Livewire-nya semua sudah siap pakai, tidak perlu dirombak.
+
+=====================================================================
+29. Monitor Tandon - riwayat sensor + grafik (24 jam / 7 hari, auto-hapus) [SELESAI - 2026-08-01]
+=====================================================================
+Revisi dari owner: butuh data sensor 1 hari terakhir + grafik biar kelihatan jam berapa ada lonjakan ppm/ph/suhu (analisa kondisi tandon sesungguhnya), riwayat bisa dilihat sampai 1 minggu ke belakang, lebih dari itu dihapus otomatis biar tidak membebani database.
+
+	a. Tabel baru "tandon_bacaans": id_tandon (FK ke tandons, cascade delete), ppm, ph, suhu, created_at (tanpa updated_at - $timestamps=false di model, cukup dicatat sekali per baris). Index gabungan (id_tandon, created_at) buat query rentang waktu cepat. Model TandonBacaan belongsTo Tandon, Tandon dapat relasi baru bacaans().
+
+	b. THROTTLING PENTING (ini yang mencegah "membebani memory" sesuai permintaan owner): App\Jobs\SimulasikanTandon tetap tick tiap 8 detik untuk update angka "terkini" di kartu (real-time tetap secepat sebelumnya), TAPI cuma INSERT ke tandon_bacaans maks 1x per 5 menit per tandon (dicek dari created_at baris terakhir). Jadi 1 minggu data cuma sekitar ~2000 baris per tandon (7 hari x 288 titik/hari), bukan puluhan ribu kalau dicatat tiap tick. Auto-hapus data lebih tua dari 7 hari juga dieksekusi di method yang sama (catatRiwayat()), setiap kali ada baris baru dicatat - tidak perlu cron/scheduler terpisah buat cleanup.
+
+	c. Grafik pakai Chart.js (baru: "npm install chart.js"). MonitorTandon::render() query TandonBacaan sesuai $rentangGrafik ('24jam' = subDay(), '7hari' = subDays(7), dipilih dari dropdown wire:model.live), lalu dispatch browser event 'tandon-grafik-data' (bukan lewat props biasa) berisi labels+ppm+ph+suhu. Alpine (window.tandonChart() di app.js) dengar event itu lewat x-on:tandon-grafik-data.window di container yang dipasangi wire:ignore - jadi Livewire TIDAK PERNAH menyentuh ulang elemen <canvas>-nya, murni Chart.js yang urus render/update. 3 chart terpisah (bukan 1 chart gabungan) karena skala ppm (0-2000), ph (0-14), suhu (15-40) beda jauh - kalau digabung 1 sumbu Y, ph & suhu bakal kelihatan rata/flat di samping ppm.
+
+	d. BUG BESAR ditemukan & diperbaiki (baru ditemukan lewat browser sungguhan, tidak akan ketahuan dari baca kode saja): grafik PPM tampil normal, tapi grafik pH & Suhu SELALU KOSONG meski data di database & payload event browser sama-sama lengkap (dikonfirmasi length 2016 di kedua ujung). Root cause: instance Chart.js awalnya disimpan sebagai properti REAKTIF Alpine (`charts: {}` di dalam object x-data). Chart.js instance punya referensi melingkar di dalam dirinya sendiri (canvas->chart->canvas dst), dan proxy reactivity Alpine yang deep-wrap semua properti x-data mencoba mem-proxy struktur melingkar itu juga -> "Maximum call stack size exceeded" tiap kali chart.update() dipanggil untuk chart kedua/ketiga (chart pertama kebetulan sempat jalan sebelum stack overflow-nya "nyangkut" secara konsisten di render berikutnya). Errornya cuma keliatan sebagai [warn] "Alpine Expression Error" di console, gampang terlewat kalau cuma cek `onlyErrors`.
+		FIX: instance Chart.js dipindah jadi closure variable BIASA (`const charts = {}` di LUAR object yang di-return ke x-data), bukan properti reaktif Alpine sama sekali - jadi Alpine tidak pernah menyentuhnya. Fungsi buatChartTandon() dan terapkanDataChart() juga dipindah jadi function biasa di luar x-data.
+		AATURAN BARU untuk project ini: JANGAN PERNAH simpan instance library eksternal yang complex/punya circular reference (Chart.js, instance Map/Leaflet, dll) sebagai properti langsung di object x-data Alpine - selalu simpan di closure variable terpisah di luar object yang di-return.
+
+	e. BUG KEDUA (self-inflicted, ditemukan pas testing pakai tandon MILIK OWNER SENDIRI yang sedang aktif disimulasikan - bukan data uji buatan Claude): sempat ada jendela singkat waktu proses coding dimana baris pemanggilan catatRiwayat() sudah ditambahkan ke handle() TAPI method catatRiwayat()-nya sendiri belum sempat ditambahkan di file yang sama (2 edit terpisah, bukan 1 edit atomik) - selama jendela itu, queue worker yang sedang jalan background sempat mengeksekusi 1 tick tandon milik owner dan crash "Call to undefined method". Karena posisi pemanggilan itu ada SEBELUM self::dispatch() (pola yang sama seperti bug broadcast di item 28), errornya bikin rantai simulasi tandon owner ('tes tandon', id 1) mati beneran selama ~9 menit sebelum ketahuan.
+		FIX GANDA: (1) method-nya sekarang sudah permanen ada di file (bukan lagi masalah), (2) TAPI supaya kejadian serupa TIDAK BISA mematikan rantai lagi di masa depan (apapun penyebabnya - bug baru, error DB, dll), urutan di handle() dirombak: self::dispatch() sekarang dipanggil PALING AWAL sebelum operasi apapun yang berpotensi gagal, dan catatRiwayat() maupun broadcast TandonUpdated() SAMA-SAMA dibungkus try/catch terpisah. Rantai simulasi tandon owner yang sempat mati sudah di-restart manual (App\Jobs\SimulasikanTandon::dispatch(1)) dan dikonfirmasi jalan normal lagi.
+		ATURAN BAKU untuk SEMUA job jenis self-redispatch di project ini (sudah 2x kejadian, jangan sampai ke-3): self::dispatch()->delay(...) HARUS jadi baris PALING AWAL yang tidak bisa gagal, sebelum baris apapun yang menyentuh service eksternal (broadcast, API, dll) atau logic tambahan yang mungkin di-develop bertahap seperti riwayat/logging. Kalau nambah langkah baru ke job semacam ini nanti, taruh SETELAH baris redispatch, bukan sebelum - dan idealnya bungkus try/catch juga.
+
+	f. Diverifikasi LANGSUNG di browser (bukan cuma baca kode): seed 8 hari data riwayat dummy dengan pola lonjakan PPM sengaja tiap jam 14:00 (+250 ppm) buat tandon uji -> dibuka halaman detail -> grafik PPM kelihatan jelas ada 3 lonjakan di jam 14:xx tiap harinya (max 969 vs baseline ~700-720) -> pindah rentang ke "7 Hari Terakhir" -> grafik ikut berubah ke 2016 titik data, semua 3 grafik (bukan cuma ppm) terisi benar setelah fix -> data uji dihapus lagi setelah verifikasi (cascade otomatis hapus tandon_bacaans terkait karena FK cascadeOnDelete). Tandon asli milik owner ("tes tandon", id 1) TIDAK disentuh/dihapus - punya data-nya sendiri, dibiarkan lanjut jalan.
+
+	g. BUG KETIGA ditemukan pas mau isi data dummy 1 minggu buat tandon asli owner (2026-08-01, revisi lanjutan): MySQL server di mesin ini ternyata jalan pakai jam SISTEM LOKAL (terbukti: MySQL NOW() = 21:24, sementara PHP now() Laravel = 14:24 - selisih persis 7 jam, cocok sama UTC+7), padahal APP_TIMEZONE Laravel di-set UTC. Migration tandon_bacaans awalnya pakai `$table->timestamp('created_at')->useCurrent()` (default level DATABASE, ambil dari NOW() versi MySQL) - akibatnya baris riwayat kecatat dengan jam 7 jam lebih maju dari now() versi Laravel. Ini bukan cuma soal salah baca jam di grafik - throttle 5 menit di SimulasikanTandon ikut RUSAK PERMANEN: begitu 1 baris kecatat dengan timestamp "dari masa depan" (7 jam lebih maju), pengecekan `created_at->gt(now()->subMinutes(5))` akan SELALU true selamanya (timestamp masa depan selalu lebih besar dari now()-5menit), jadi tidak akan pernah ada baris riwayat baru lagi setelah baris pertama.
+		FIX: App\Models\TandonBacaan dikasih `booted()` hook (`static::creating`) yang WAJIB isi `created_at` dari `now()` PHP kalau belum diisi manual - jadi sumber waktu SELALU dari Laravel, tidak pernah bergantung ke default DB. Baris riwayat lama yang sudah terlanjur salah jam dihapus, lalu tandon asli owner di-seed ulang 7 hari penuh data dummy (2018 baris, random-walk + logika auto-dosing yang sama persis kayak job aslinya supaya polanya realistis) dengan timestamp yang benar, berakhir tepat di waktu sekarang.
+		ATURAN BARU untuk project ini: JANGAN PERNAH pakai default timestamp level-DATABASE (`useCurrent()`, `useCurrentOnUpdate()`, dst di migration) untuk kolom yang dibandingkan dengan `now()` versi PHP di logic aplikasi (throttle, filter rentang waktu, dll) - App server dan DB server bisa beda timezone sistem meski `APP_TIMEZONE` sudah benar. Selalu isi timestamp dari PHP (`now()`) secara eksplisit, idealnya lewat model event/hook biar konsisten di semua jalur insert (baik dari job maupun seed manual), bukan bergantung ke default kolom.
+		Diverifikasi ulang di browser: grafik 24 jam & 7 hari sama-sama berakhir tepat di jam sekarang (bukan lagi 7 jam melenceng), throttle dicek tetap jalan normal (tidak nambah baris baru dalam <5 menit, lanjut normal setelahnya), status_simulasi & terakhir_baca_at tandon owner tetap sehat selama proses.
+
+=====================================================================
+30. Monitor Tandon - pencarian, hover pointer, pagination [SELESAI - 2026-08-01]
+=====================================================================
+Revisi kecil dari owner: halaman list Monitor Tandon belum ada pencarian, kartu belum kelihatan bisa diklik (hover pointer), dan belum ada pagination (dengan opsi tampilkan 10-100).
+
+	a. Pencarian: input search di header (sama persis pola/style kayak halaman Pembeli), wire:model.live.debounce.300ms, filter ke nama tandon ATAU nama kebun (jadi bisa cari "kebun 1" buat lihat semua tandon di kebun itu, bukan cuma nama tandon persis). updatingSearch() reset ke halaman 1 (pola sama kayak JadwalSemprot/ManajemenTanaman).
+
+	b. Pagination: query list diganti dari ->get() jadi ->paginate($perPage), WithPagination trait ditambahkan. Selector jumlah per halaman 10/25/50/100 (persis sama kayak halaman Pembeli), info "dari X tandon", tombol halaman sebelumnya/berikutnya, "Hal X / Y". Pesan kosong beda kalau lagi searching ("tidak ada yang cocok dengan pencarian") vs benar-benar belum ada tandon sama sekali.
+
+	c. Hover pointer: sebelumnya cuma area teks nama+kebun di kartu yang punya wire:click (cursor-pointer kecil doang), area lain kartu (badge, angka sensor, dll) tidak keliatan bisa diklik. Sekarang wire:click="viewDetail(...)" + cursor-pointer dipindah ke SELURUH kartu (div pembungkus utama), ditambah hover:shadow-xl hover:-translate-y-0.5 buat kasih efek visual jelas kalau kartu itu interaktif. Supaya tombol aksi di footer kartu (toggle simulasi/Target/hapus) tidak ikut kebawa trigger viewDetail() waktu diklik, div pembungkus tombol-tombol itu dikasih onclick="event.stopPropagation()" (pola sama kayak halaman Pembeli buat kolom aksi di tabel).
+
+	Diverifikasi di browser: search "tes tandon" nyaring dari 13 jadi 1 hasil, ganti perPage ke 25 nampilin semua 13 dalam 1 halaman, klik tombol "Target" di kartu cuma buka modal edit (TIDAK ikut pindah ke halaman detail) membuktikan stopPropagation-nya jalan, cursor kartu dicek computed style beneran "pointer". Data uji (12 tandon dummy buat tes pagination) dihapus lagi setelah verifikasi, tandon asli owner tidak disentuh.
