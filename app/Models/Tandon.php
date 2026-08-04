@@ -20,6 +20,10 @@ class Tandon extends Model
         'terakhir_baca_at',
         'sumber_data',
         'device_token',
+        'durasi_dosing_detik',
+        'jeda_cek_detik',
+        'maks_percobaan_dosing',
+        'percobaan_dosing_saat_ini',
     ];
 
     protected $casts = [

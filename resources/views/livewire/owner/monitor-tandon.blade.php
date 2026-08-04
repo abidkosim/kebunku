@@ -241,6 +241,30 @@
                 <input type="number" step="0.1" wire:model="target_ph_form" class="input-fancy mt-1.5 w-full px-4 py-3 rounded-xl text-sm outline-none">
                 @error('target_ph_form') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
             </div>
+
+            <div class="sm:col-span-2 pt-2 border-t border-slate-200/50 dark:border-slate-700/50">
+                <p class="text-xs font-bold text-slate-600 dark:text-slate-300">Timing Auto-Dosing</p>
+                <p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Atur berapa lama pompa menyala & berapa lama tunggu sebelum dicek ulang. Rekomendasi default cocok buat tandon kecil-menengah dengan sirkulasi aktif - perbesar jeda cek kalau tandon lebih besar/tanpa sirkulasi.</p>
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Durasi Pompa Dosing (detik)</label>
+                <input type="number" wire:model="durasi_dosing_detik_form" class="input-fancy mt-1.5 w-full px-4 py-3 rounded-xl text-sm outline-none">
+                <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">Rekomendasi: 5 detik (pulse pendek, hindari overdosis sekali suntik)</p>
+                @error('durasi_dosing_detik_form') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Jeda Cek Ulang (detik)</label>
+                <input type="number" wire:model="jeda_cek_detik_form" class="input-fancy mt-1.5 w-full px-4 py-3 rounded-xl text-sm outline-none">
+                <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">Rekomendasi: 60 detik (waktu larutan bercampur sebelum dibaca ulang)</p>
+                @error('jeda_cek_detik_form') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+            </div>
+            <div>
+                <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Maks Percobaan Sebelum Berhenti</label>
+                <input type="number" wire:model="maks_percobaan_dosing_form" class="input-fancy mt-1.5 w-full px-4 py-3 rounded-xl text-sm outline-none">
+                <p class="mt-1 text-[10px] text-slate-400 dark:text-slate-500">Rekomendasi: 5x (batas keamanan - kalau sensor error, dosing tidak akan terus-menerus)</p>
+                @error('maks_percobaan_dosing_form') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+            </div>
+
             <div class="sm:col-span-2">
                 <button type="submit" class="btn-primary px-5 py-3 rounded-xl text-sm font-bold transition-all">Simpan Target</button>
             </div>

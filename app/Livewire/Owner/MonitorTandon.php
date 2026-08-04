@@ -27,6 +27,7 @@ class MonitorTandon extends Component
     public $isEditMode = false;
     public $editId = null;
     public $id_kebun_form, $nama_form, $target_ppm_form, $target_ph_form;
+    public $durasi_dosing_detik_form, $jeda_cek_detik_form, $maks_percobaan_dosing_form;
 
     public function mount()
     {
@@ -72,6 +73,9 @@ class MonitorTandon extends Component
         $this->nama_form = $tandon->nama;
         $this->target_ppm_form = $tandon->target_ppm;
         $this->target_ph_form = $tandon->target_ph;
+        $this->durasi_dosing_detik_form = $tandon->durasi_dosing_detik;
+        $this->jeda_cek_detik_form = $tandon->jeda_cek_detik;
+        $this->maks_percobaan_dosing_form = $tandon->maks_percobaan_dosing;
         $this->isEditMode = true;
     }
 
@@ -85,6 +89,9 @@ class MonitorTandon extends Component
         $this->reset(['nama_form', 'id_kebun_form', 'editId']);
         $this->target_ppm_form = 750;
         $this->target_ph_form = 6.0;
+        $this->durasi_dosing_detik_form = 5;
+        $this->jeda_cek_detik_form = 60;
+        $this->maks_percobaan_dosing_form = 5;
         $this->isEditMode = false;
         $this->showModal = true;
     }
@@ -97,6 +104,9 @@ class MonitorTandon extends Component
         $this->nama_form = $tandon->nama;
         $this->target_ppm_form = $tandon->target_ppm;
         $this->target_ph_form = $tandon->target_ph;
+        $this->durasi_dosing_detik_form = $tandon->durasi_dosing_detik;
+        $this->jeda_cek_detik_form = $tandon->jeda_cek_detik;
+        $this->maks_percobaan_dosing_form = $tandon->maks_percobaan_dosing;
         $this->isEditMode = true;
         $this->showModal = true;
     }
@@ -108,6 +118,9 @@ class MonitorTandon extends Component
             'nama_form' => 'required|string|max:100',
             'target_ppm_form' => 'required|integer|min:0|max:2000',
             'target_ph_form' => 'required|numeric|min:0|max:14',
+            'durasi_dosing_detik_form' => 'required|integer|min:1|max:120',
+            'jeda_cek_detik_form' => 'required|integer|min:5|max:1800',
+            'maks_percobaan_dosing_form' => 'required|integer|min:1|max:20',
         ]);
 
         // pastikan kebun yang dipilih benar-benar milik owner ini
@@ -120,6 +133,9 @@ class MonitorTandon extends Component
                 'nama' => $this->nama_form,
                 'target_ppm' => $this->target_ppm_form,
                 'target_ph' => $this->target_ph_form,
+                'durasi_dosing_detik' => $this->durasi_dosing_detik_form,
+                'jeda_cek_detik' => $this->jeda_cek_detik_form,
+                'maks_percobaan_dosing' => $this->maks_percobaan_dosing_form,
             ]);
             $this->catat('update', "Mengubah target tandon '{$tandon->nama}': PPM {$this->target_ppm_form}, pH {$this->target_ph_form}");
         } else {
@@ -128,6 +144,9 @@ class MonitorTandon extends Component
                 'nama' => $this->nama_form,
                 'target_ppm' => $this->target_ppm_form,
                 'target_ph' => $this->target_ph_form,
+                'durasi_dosing_detik' => $this->durasi_dosing_detik_form,
+                'jeda_cek_detik' => $this->jeda_cek_detik_form,
+                'maks_percobaan_dosing' => $this->maks_percobaan_dosing_form,
                 'ppm_terkini' => max(0, $this->target_ppm_form - 150),
                 'ph_terkini' => max(0, $this->target_ph_form - 0.5),
                 'suhu_terkini' => 27.0,
