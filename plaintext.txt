@@ -1,3 +1,5 @@
+tes deploy
+
 1. kebutuhan data
 	1.superadmin
 	2.owner
@@ -443,3 +445,24 @@ Revisi kecil dari owner: halaman list Monitor Tandon belum ada pencarian, kartu 
 	c. Hover pointer: sebelumnya cuma area teks nama+kebun di kartu yang punya wire:click (cursor-pointer kecil doang), area lain kartu (badge, angka sensor, dll) tidak keliatan bisa diklik. Sekarang wire:click="viewDetail(...)" + cursor-pointer dipindah ke SELURUH kartu (div pembungkus utama), ditambah hover:shadow-xl hover:-translate-y-0.5 buat kasih efek visual jelas kalau kartu itu interaktif. Supaya tombol aksi di footer kartu (toggle simulasi/Target/hapus) tidak ikut kebawa trigger viewDetail() waktu diklik, div pembungkus tombol-tombol itu dikasih onclick="event.stopPropagation()" (pola sama kayak halaman Pembeli buat kolom aksi di tabel).
 
 	Diverifikasi di browser: search "tes tandon" nyaring dari 13 jadi 1 hasil, ganti perPage ke 25 nampilin semua 13 dalam 1 halaman, klik tombol "Target" di kartu cuma buka modal edit (TIDAK ikut pindah ke halaman detail) membuktikan stopPropagation-nya jalan, cursor kartu dicek computed style beneran "pointer". Data uji (12 tandon dummy buat tes pagination) dihapus lagi setelah verifikasi, tandon asli owner tidak disentuh.
+
+=====================================================================
+31. Deploy production ke VPS: dari upload manual jadi terstruktur + ganti Apache ke Nginx [SELESAI - 2026-08-03]
+=====================================================================
+VPS (cumabisa.online, port web 9980, port ssh 9922, user "billing") sebelumnya sudah pernah diisi manual (bukan lewat proses ter-track) dan jalan pakai Apache (mod_php) + proses reverb:start/queue:work yang dijalankan manual (mati kalau server restart). Diminta redeploy yang lebih rapi + ganti web server ke Nginx.
+
+	a. Rencana awal: clone dari GitHub (repo abidkosim/kebunku, private) pakai SSH deploy key yang di-generate di VPS. User sempat diminta tempel public key ke GitHub > Settings > Deploy keys, tapi setelah ditunggu key belum juga ke-detect (`git ls-remote` masih "Permission denied"), user minta ganti cara: langsung upload dari folder lokal (C:\xampp\htdocs\kebunku) ke VPS, bukan lewat GitHub.
+
+	b. Metode upload: tar folder lokal (exclude .git, vendor, node_modules, .env, storage/logs & cache/sessions/views, public/build, .claude, plaintext.txt) -> pscp ke VPS -> extract langsung ke /var/www/html (menimpa source code, TAPI TIDAK menyentuh .env produksi yang sudah benar, storage/, vendor/, node_modules/ lama - itu semua di luar tar). Backup tarball folder lama disimpan dulu di ~/backups sebelum extract sebagai jaring pengaman.
+
+	c. Servis yang di-install: nginx, php8.3-fpm (sebelumnya cuma ada mod_php buat Apache, belum ada php-fpm sama sekali), unzip. composer install --no-dev + npm ci && npm run build dijalankan ulang di server (bukan upload vendor/node_modules dari lokal). php artisan migrate --force jalan otomatis apply migration baru yang belum ada di server (tandons, tandon_bacaans) - DB eksternal (host 153.92.15.19, cPanel-style) sudah ada data lain sebelumnya, tidak diganggu.
+
+	d. Konfigurasi Nginx (/etc/nginx/sites-available/kebunku.conf): listen 9980 & 80, root ke public/, PHP diproses lewat php-fpm pool khusus ("kebunku", user=billing supaya kepemilikan file tetap konsisten, socket bisa diakses www-data), location /app di-proxy ke 127.0.0.1:8080 (websocket Reverb) persis pola Apache lama, block akses ke .env/dotfile. Setelah nginx -t & php-fpm -t lolos, Apache DIHENTIKAN & di-disable (systemctl stop/disable apache2), Nginx+php8.3-fpm yang gantikan.
+
+	e. Reverb & queue worker yang sebelumnya proses manual (bakal mati kalau server restart/crash) sekarang jadi systemd service (kebunku-reverb.service, kebunku-queue.service, User=billing, Restart=always) - auto-restart & survive reboot.
+
+	f. BUG kecil pas cutover: setelah service reverb baru di-enable & start, sempat crash-loop terus-terusan "Address already in use" di port 8080 - ternyata proses reverb:start MANUAL lama (bukan yang dicatat di recon awal, sudah sempat di-restart user sebelumnya jadi PID beda) masih pegang port itu, belum ke-kill sebelum service baru jalan. FIX: `kill -9` proses lama itu dulu baru service systemd bisa bind port 8080 dengan normal, langsung stabil setelahnya (dicek NRestarts berhenti nambah).
+
+	g. Diverifikasi: curl ke http://cumabisa.online:9980/ balas 200 + HTML lengkap, dibuka di browser sungguhan (halaman Login Kebunku) - CSS/JS/font semua ke-load 200 OK, tidak ada error di console. `systemctl is-enabled` utk nginx/php8.3-fpm/kebunku-reverb/kebunku-queue semuanya "enabled" (aman kalau VPS di-reboot), apache2 dipastikan "disabled".
+
+	CATATAN untuk deploy berikutnya: /var/www/html BUKAN git repo (bukan clone/pull dari GitHub) karena deploy key belum sempat kedetect saat itu - kalau mau update ke depan, ulangi pola yang sama (tar lokal -> pscp -> extract, exclude vendor/node_modules/.env/storage) ATAU selesaikan dulu setup deploy key-nya di GitHub kalau mau pindah ke alur `git pull` yang lebih simpel. SSH deploy key ed25519 sudah ada tersimpan di VPS (~/.ssh/kebunku_deploy, public key sudah pernah diberikan ke user) kalau suatu saat mau dilanjutkan.
