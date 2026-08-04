@@ -5,6 +5,8 @@ use Illuminate\Support\Facades\Auth;
 
 Route::get('/', fn() => view('pages.owner-login'))->name('owner.login');
 
+Route::get('/monitor/{kunci}', fn($kunci) => view('pages.monitor-publik', compact('kunci')))->name('monitor.publik');
+
 Route::prefix('superadmin')->group(function(){
     Route::get('/register', function(){
         return view('pages.superadmin-register');

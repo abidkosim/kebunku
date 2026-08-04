@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Owner extends Model
 {
-    protected $fillable = ['nama','nama_usaha','username','password','alamat','foto'];
+    protected $fillable = ['nama','nama_usaha','username','password','alamat','foto','kunci_monitor'];
     public function users() { return $this->hasMany(User::class, 'id_owners'); }
     public function tanaman() { return $this->hasMany(Tanaman::class, 'id_owners'); }
     public function kebun() { return $this->hasMany(Kebun::class, 'id_owners'); }

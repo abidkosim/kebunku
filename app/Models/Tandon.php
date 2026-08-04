@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Tandon extends Model
 {
@@ -17,11 +18,20 @@ class Tandon extends Model
         'status_simulasi',
         'status_pompa',
         'terakhir_baca_at',
+        'sumber_data',
+        'device_token',
     ];
 
     protected $casts = [
         'terakhir_baca_at' => 'datetime',
     ];
+
+    protected static function booted()
+    {
+        static::creating(function (self $tandon) {
+            $tandon->device_token ??= Str::random(40);
+        });
+    }
 
     public function kebun()
     {

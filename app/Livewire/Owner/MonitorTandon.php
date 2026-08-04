@@ -11,6 +11,7 @@ use App\Models\Kebun;
 use App\Models\Tandon;
 use App\Models\TandonBacaan;
 use App\Jobs\SimulasikanTandon;
+use Illuminate\Support\Str;
 
 class MonitorTandon extends Component
 {
@@ -153,6 +154,35 @@ class MonitorTandon extends Component
             SimulasikanTandon::dispatch($tandon->id)->delay(now()->addSeconds(3));
             $this->catat('update', "Mengaktifkan kembali simulasi sensor tandon '{$tandon->nama}'");
         }
+    }
+
+    public function ubahSumberData($id)
+    {
+        $tandon = $this->tandonQuery()->findOrFail($id);
+
+        if ($tandon->sumber_data === 'iot') {
+            $tandon->update(['sumber_data' => 'simulasi']);
+            $this->catat('update', "Tandon '{$tandon->nama}' dikembalikan ke mode simulasi");
+        } else {
+            $tandon->update(['sumber_data' => 'iot', 'status_simulasi' => 'berhenti', 'status_pompa' => null]);
+            $this->catat('update', "Tandon '{$tandon->nama}' dipindah ke mode IoT (sensor asli lewat ESP32)");
+        }
+    }
+
+    public function generateUlangToken($id)
+    {
+        $tandon = $this->tandonQuery()->findOrFail($id);
+        $tandon->update(['device_token' => Str::random(40)]);
+        $this->catat('update', "Token perangkat IoT tandon '{$tandon->nama}' di-generate ulang");
+        $this->dispatch('alert-success', message: 'Token perangkat baru sudah dibuat');
+    }
+
+    public function generateKunciMonitor()
+    {
+        $this->owner->update(['kunci_monitor' => Str::random(32)]);
+        $this->owner->refresh();
+        $this->catat('update', 'Link Monitor Publik dibuat/di-generate ulang');
+        $this->dispatch('alert-success', message: 'Link monitor publik sudah dibuat');
     }
 
     public function delete($id)
