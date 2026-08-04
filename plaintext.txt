@@ -1,4 +1,4 @@
-tes deploy
+yang terbaru banget
 
 1. kebutuhan data
 	1.superadmin
@@ -466,3 +466,23 @@ VPS (cumabisa.online, port web 9980, port ssh 9922, user "billing") sebelumnya s
 	g. Diverifikasi: curl ke http://cumabisa.online:9980/ balas 200 + HTML lengkap, dibuka di browser sungguhan (halaman Login Kebunku) - CSS/JS/font semua ke-load 200 OK, tidak ada error di console. `systemctl is-enabled` utk nginx/php8.3-fpm/kebunku-reverb/kebunku-queue semuanya "enabled" (aman kalau VPS di-reboot), apache2 dipastikan "disabled".
 
 	CATATAN untuk deploy berikutnya: /var/www/html BUKAN git repo (bukan clone/pull dari GitHub) karena deploy key belum sempat kedetect saat itu - kalau mau update ke depan, ulangi pola yang sama (tar lokal -> pscp -> extract, exclude vendor/node_modules/.env/storage) ATAU selesaikan dulu setup deploy key-nya di GitHub kalau mau pindah ke alur `git pull` yang lebih simpel. SSH deploy key ed25519 sudah ada tersimpan di VPS (~/.ssh/kebunku_deploy, public key sudah pernah diberikan ke user) kalau suatu saat mau dilanjutkan.
+
+=====================================================================
+32. Perintah singkat deployment (dipakai owner buat minta update selanjutnya)
+=====================================================================
+Supaya owner tinggal ketik perintah pendek tanpa perlu jelasin ulang detailnya tiap kali minta update, berikut definisi bakunya:
+
+	a. "deploy ke git" = commit perubahan yang ada di local (C:\xampp\htdocs\kebunku) lalu `git push` ke remote origin (https://github.com/abidkosim/kebunku.git, branch main). Kredensial push dari mesin local sudah tersimpan (Git Credential Manager), sudah terbukti jalan (commit 7d8397f berhasil push tanpa perlu login ulang).
+
+	b. "deploy ke vps" = tarik perubahan terbaru dari GitHub ke VPS (cumabisa.online, /var/www/html), lalu jalankan ulang urutan build production: `composer install --no-dev --optimize-autoloader` -> `npm ci && npm run build` -> `php artisan migrate --force` -> `php artisan config:cache route:cache view:cache event:cache` -> perbaiki permission (chown billing:billing, chgrp www-data storage) -> restart service (`systemctl restart php8.3-fpm kebunku-queue kebunku-reverb`; nginx cuma perlu restart kalau config nginx-nya sendiri yang berubah).
+		- Jalur idealnya `git pull` (kalau deploy key ed25519 di VPS ~/.ssh/kebunku_deploy sudah kedetect GitHub - masih PENDING per catatan poin 31).
+		- Selama deploy key belum jalan, fallback-nya: tar folder local (exclude .git, vendor, node_modules, .env, storage/logs & cache/sessions/views, public/build, .claude, plaintext.txt) -> pscp ke VPS -> extract ke /var/www/html (tidak menimpa .env, storage/, vendor/, node_modules/ yang di server).
+
+	c. Detail koneksi VPS (password SSH & sudo TIDAK dicatat di sini karena file plaintext.txt ini ikut ter-push ke GitHub - detail credential disimpan terpisah di memory Claude, bukan di repo):
+		- Host: cumabisa.online, port SSH: 9922, user: billing (sudo pakai password yang sama dengan SSH)
+		- Port web aplikasi: 9980 (Nginx, root /var/www/html/public)
+		- Git remote: https://github.com/abidkosim/kebunku.git (branch main, repo PRIVATE)
+		- DB produksi: host eksternal 153.92.15.19 (cPanel-style, database `u151348443_kebunku`) - bukan MySQL lokal VPS
+		- Reverb websocket: 127.0.0.1:8080 di-proxy Nginx lewat path /app
+
+	d. "ssh vps" (tanpa embel-embel lain) = cukup konek ke VPS pakai detail poin c di atas buat cek status/log, TIDAK otomatis deploy apa-apa kecuali diminta eksplisit "deploy ke vps".
