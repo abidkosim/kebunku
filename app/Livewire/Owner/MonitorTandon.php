@@ -37,6 +37,9 @@ class MonitorTandon extends Component
         if ($redirect = $this->requireRole(['owner'])) {
             return $redirect;
         }
+        if ($redirect = $this->requireAksesPenuh()) {
+            return $redirect;
+        }
     }
 
     public function updatingSearch()

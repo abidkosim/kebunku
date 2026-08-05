@@ -4,6 +4,7 @@ namespace App\Livewire\Owner\Concerns;
 
 use App\Models\Owner;
 use App\Models\User;
+use App\Support\RememberMe;
 
 /**
  * Auth resolver dipakai lintas panel Owner & Staff (teknisi/keuangan).
@@ -20,6 +21,12 @@ trait RequiresOwnerAuth
 
     protected function loadAuthenticatedOwner()
     {
+        // pesan yang di-flash dari redirect sebelumnya (mis. requireAksesPenuh()) - tampilkan
+        // sekali lewat toast yang sama dengan alert-success/alert-error yang sudah ada.
+        if ($pesan = session()->pull('alert-error')) {
+            $this->dispatch('alert-error', message: $pesan);
+        }
+
         if (session()->has('owner_id')) {
             $this->owner = Owner::find(session('owner_id'));
 
@@ -57,6 +64,32 @@ trait RequiresOwnerAuth
             return;
         }
 
+        // belum ada session - coba auto-login lewat cookie "ingat saya"
+        if ($owner = RememberMe::cariDariCookie('remember_owner', Owner::class)) {
+            session(['owner_id' => $owner->id, 'owner_nama' => $owner->nama]);
+            $this->owner = $owner;
+            $this->actorType = 'owner';
+            $this->actorId = $owner->id;
+            $this->actorNama = $owner->nama;
+            $this->actorFotoUrl = $owner->foto_url;
+            return;
+        }
+
+        if ($user = RememberMe::cariDariCookie('remember_user', User::class)) {
+            $this->owner = Owner::find($user->id_owners);
+
+            if (!$this->owner) {
+                return redirect('/');
+            }
+
+            session(['user_id' => $user->id, 'user_nama' => $user->nama, 'user_role' => $user->role]);
+            $this->actorType = $user->role;
+            $this->actorId = $user->id;
+            $this->actorNama = $user->nama;
+            $this->actorFotoUrl = $user->foto_url;
+            return;
+        }
+
         return redirect('/');
     }
 
@@ -77,8 +110,33 @@ trait RequiresOwnerAuth
         };
     }
 
+    /**
+     * Batasi akses komponen ini ke owner yang trial/langganannya masih aktif.
+     * Dipakai fitur premium (Monitor Tandon, Galeri) - lihat Owner::punyaAksesPenuh().
+     */
+    protected function requireAksesPenuh()
+    {
+        if ($this->owner->punyaAksesPenuh()) {
+            return;
+        }
+
+        session()->flash('alert-error', 'Trial/langganan Anda sudah berakhir. Hubungi admin untuk upgrade ke Pro.');
+
+        return match ($this->actorType) {
+            'owner' => redirect('/owner/dashboard'),
+            'teknisi', 'keuangan' => redirect('/portal/dashboard'),
+            default => redirect('/'),
+        };
+    }
+
     public function logout()
     {
+        if ($this->actorType === 'owner' && $this->owner) {
+            RememberMe::lupakan('remember_owner', $this->owner);
+        } elseif (in_array($this->actorType, ['teknisi', 'keuangan'], true) && $this->actorId) {
+            RememberMe::lupakan('remember_user', User::find($this->actorId));
+        }
+
         session()->forget(['owner_id', 'owner_nama', 'user_id', 'user_nama', 'user_role']);
         return $this->redirect('/', navigate: true);
     }

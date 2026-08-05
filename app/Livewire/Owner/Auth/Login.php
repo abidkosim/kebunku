@@ -5,12 +5,14 @@ namespace App\Livewire\Owner\Auth;
 use Livewire\Component;
 use App\Models\Owner;
 use App\Models\User;
+use App\Support\RememberMe;
 use Illuminate\Support\Facades\Hash;
 
 class Login extends Component
 {
     public $username = '';
     public $password = '';
+    public $remember = false;
     public $showPassword = false;
 
     public function render()
@@ -31,6 +33,9 @@ class Login extends Component
                 'owner_id' => $owner->id,
                 'owner_nama' => $owner->nama,
             ]);
+            if ($this->remember) {
+                RememberMe::ingat('remember_owner', $owner);
+            }
             return $this->redirect('/owner/dashboard', navigate: true);
         }
 
@@ -41,6 +46,9 @@ class Login extends Component
                 'user_nama' => $user->nama,
                 'user_role' => $user->role,
             ]);
+            if ($this->remember) {
+                RememberMe::ingat('remember_user', $user);
+            }
             return $this->redirect('/portal/dashboard', navigate: true);
         }
 

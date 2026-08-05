@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class User extends Model
 {
     protected $table = 'users';
-    protected $fillable = ['id_owners','nama','username','password','alamat','role','foto'];
+    protected $fillable = ['id_owners','nama','username','password','alamat','role','foto','remember_token'];
 
     public function owner()
     {

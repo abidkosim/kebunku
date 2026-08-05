@@ -4,6 +4,7 @@ namespace App\Livewire\Superadmin\Auth;
 
 use Livewire\Component;
 use App\Models\Superadmin;
+use App\Support\RememberMe;
 use Illuminate\Support\Facades\Hash;
 
 class Login extends Component
@@ -37,6 +38,10 @@ class Login extends Component
             'superadmin_id' => $superadmin->id,
             'superadmin_nama' => $superadmin->nama,
         ]);
+
+        if ($this->remember) {
+            RememberMe::ingat('remember_superadmin', $superadmin);
+        }
 
         // KIRIM ALERT SUKSES KE FRONTEND
         $this->dispatch('alert-success', message: 'Login berhasil, selamat datang ' . $superadmin->nama);

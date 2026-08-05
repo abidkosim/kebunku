@@ -38,6 +38,9 @@ class KelolaGaleri extends Component
         if ($redirect = $this->requireRole(['owner', 'teknisi', 'keuangan'])) {
             return $redirect;
         }
+        if ($redirect = $this->requireAksesPenuh()) {
+            return $redirect;
+        }
     }
 
     /**

@@ -3,7 +3,7 @@
 @php
 $menus = [
     ['slug' => 'panel', 'label' => 'Panel Dashboard', 'href' => route('owner.dashboard'), 'icon' => 'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z'],
-    ['slug' => 'tanaman', 'label' => 'Management Tanaman', 'icon' => 'M12 3c-2.5 2.5-4 5-4 8a4 4 0 008 0c0-3-1.5-5.5-4-8zM12 13v8m-4 0h8', 'children' => [
+    ['slug' => 'tanaman', 'label' => 'Manajemen Tanaman', 'icon' => 'M12 3c-2.5 2.5-4 5-4 8a4 4 0 008 0c0-3-1.5-5.5-4-8zM12 13v8m-4 0h8', 'children' => [
         ['slug' => 'tanaman-kebun', 'label' => 'Kelola Kebun & Meja', 'href' => route('owner.tanaman.kebun')],
         ['slug' => 'tanaman-kelola', 'label' => 'Kelola Tanaman', 'href' => route('owner.tanaman')],
         ['slug' => 'tanaman-semprot', 'label' => 'Jadwal Semprot', 'href' => route('owner.tanaman.semprot')],
@@ -34,6 +34,7 @@ $menus = [
                     <p class="font-extrabold text-sm leading-none tracking-tight bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent">Owner Panel</p>
                     <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 mono font-medium tracking-[0.15em]">{{ strtoupper($owner->nama_usaha) }}</p>
                 </div>
+                <x-owner.badge-langganan :owner="$owner" />
             </div>
             <div class="flex items-center gap-3">
                 {{-- Notifikasi Toggle --}}
@@ -108,7 +109,10 @@ $menus = [
     <div class="flex">
         {{-- Sidebar (desktop) --}}
         <aside class="hidden lg:flex flex-col w-64 shrink-0 min-h-[calc(100vh-4rem)] glass-card border-r border-slate-200/60 dark:border-slate-700/50 p-4 gap-1 sticky top-16 self-start">
-            <x-owner.sidebar-menu :menus="$menus" :active="$active" />
+            <x-owner.sidebar-menu :menus="$menus" :active="$active" :owner="$owner" />
+            <div class="mt-auto pt-2 border-t border-slate-200/50 dark:border-slate-700/50">
+                @livewire('owner.saran-masukan-modal')
+            </div>
         </aside>
 
         {{-- Sidebar (mobile overlay) --}}
@@ -118,7 +122,10 @@ $menus = [
                 <p class="font-extrabold text-sm dark:text-white">Menu</p>
                 <button @click="sidebarOpen = false" aria-label="Tutup menu" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400">✕</button>
             </div>
-            <x-owner.sidebar-menu :menus="$menus" :active="$active" />
+            <x-owner.sidebar-menu :menus="$menus" :active="$active" :owner="$owner" />
+            <div class="mt-auto pt-2 border-t border-slate-200/50 dark:border-slate-700/50">
+                @livewire('owner.saran-masukan-modal')
+            </div>
         </aside>
 
         {{-- Main content --}}

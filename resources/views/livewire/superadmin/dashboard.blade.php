@@ -304,6 +304,7 @@
                                 <th scope="col" class="px-6 py-4 text-left">NAMA</th>
                                 <th scope="col" class="px-6 py-4 text-left">USAHA</th>
                                 <th scope="col" class="px-6 py-4 text-left">USERNAME</th>
+                                <th scope="col" class="px-6 py-4 text-left">MODE</th>
                                 <th scope="col" class="px-6 py-4 text-left">DIBUAT</th>
                                 <th scope="col" class="px-6 py-4 text-right">AKSI</th>
                             </tr>
@@ -319,6 +320,17 @@
                                 </td>
                                 <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 align-middle font-medium">{{ $item->nama_usaha }}</td>
                                 <td class="px-6 py-4 text-sm mono text-slate-600 dark:text-slate-300 align-middle font-medium">{{ $item->username }}</td>
+                                <td class="px-6 py-4 align-middle">
+                                    @if($item->mode_langganan === 'trial')
+                                        <span class="text-[10px] font-bold px-2.5 py-1 rounded-full {{ $item->punyaAksesPenuh() ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }}">
+                                            Trial {{ $item->trial_berakhir_at?->isPast() ? 'berakhir' : 'sd '.$item->trial_berakhir_at?->format('d M Y') }}
+                                        </span>
+                                    @else
+                                        <span class="text-[10px] font-bold px-2.5 py-1 rounded-full {{ $item->punyaAksesPenuh() ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }}">
+                                            Pro {{ $item->pro_berakhir_at ? 'sd '.$item->pro_berakhir_at->format('d M Y') : '(tanpa batas)' }}
+                                        </span>
+                                    @endif
+                                </td>
                                 <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 align-middle">{{ $item->created_at->format('d M Y') }}</td>
                                 <td class="px-6 py-4 align-middle">
                                     @if(($superadmin->akses ?? 'full') === 'full')
@@ -344,6 +356,15 @@
                         <div>
                             <p class="text-sm font-bold dark:text-white">{{ $item->nama }}</p>
                             <p class="text-[10px] mono text-slate-500 dark:text-slate-400">{{ $item->nama_usaha }} • {{ $item->username }}</p>
+                            @if($item->mode_langganan === 'trial')
+                                <span class="inline-block mt-1 text-[9px] font-bold px-2 py-0.5 rounded-full {{ $item->punyaAksesPenuh() ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }}">
+                                    Trial {{ $item->trial_berakhir_at?->isPast() ? 'berakhir' : 'sd '.$item->trial_berakhir_at?->format('d M') }}
+                                </span>
+                            @else
+                                <span class="inline-block mt-1 text-[9px] font-bold px-2 py-0.5 rounded-full {{ $item->punyaAksesPenuh() ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }}">
+                                    Pro {{ $item->pro_berakhir_at ? 'sd '.$item->pro_berakhir_at->format('d M') : '(tanpa batas)' }}
+                                </span>
+                            @endif
                         </div>
                     </div>
                     @if(($superadmin->akses ?? 'full') === 'full')
@@ -354,6 +375,41 @@
                     @endif
                 </div>
                 @endforeach
+            </div>
+        </div>
+    </div>
+
+    {{-- Saran & Masukan --}}
+    <div class="max-w-7xl mx-auto px-4 lg:px-6 pb-8">
+        <div class="glass-card rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-slate-800/20 border-slate-200/60 dark:border-slate-700/50 overflow-hidden">
+            <div class="p-5 lg:p-6 border-b border-slate-200/50 dark:border-slate-700/50">
+                <h3 class="font-extrabold text-lg flex items-center gap-2 dark:text-white">
+                    <svg class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    Saran &amp; Masukan
+                    @if($sarans->where('dibaca', false)->count() > 0)
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">{{ $sarans->where('dibaca', false)->count() }} belum dibaca</span>
+                    @endif
+                </h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Masukan dari owner/staff lewat panel masing-masing</p>
+            </div>
+            <div class="max-h-[28rem] overflow-y-auto divide-y divide-slate-100/70 dark:divide-slate-700/50">
+                @forelse($sarans as $s)
+                <div class="p-4 lg:p-5 flex items-start justify-between gap-4 {{ $s->dibaca ? '' : 'bg-amber-50/40 dark:bg-amber-900/10' }}">
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold text-slate-700 dark:text-slate-200">
+                            {{ $s->actor_nama }}
+                            <span class="font-normal text-slate-400 dark:text-slate-500">({{ $s->owner->nama_usaha ?? '-' }})</span>
+                        </p>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 mt-1 whitespace-pre-line">{{ $s->pesan }}</p>
+                        <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">{{ $s->created_at->diffForHumans() }}</p>
+                    </div>
+                    @if(!$s->dibaca)
+                    <button wire:click="tandaiDibacaSaran({{ $s->id }})" class="shrink-0 text-[11px] font-bold px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition">Tandai Dibaca</button>
+                    @endif
+                </div>
+                @empty
+                <div class="p-8 text-center text-xs text-slate-400 dark:text-slate-500">Belum ada saran & masukan</div>
+                @endforelse
             </div>
         </div>
     </div>
@@ -436,6 +492,30 @@
                     <label for="alamatOwner_form" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Alamat</label>
                     <textarea id="alamatOwner_form" wire:model="alamatOwner_form" rows="3" class="input-fancy mt-1.5 w-full px-4 py-3 rounded-xl text-sm outline-none"></textarea>
                 </div>
+
+                <div class="pt-2 border-t border-slate-200/50 dark:border-slate-700/50">
+                    <label for="modeLangganan_form" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Mode Langganan</label>
+                    <select id="modeLangganan_form" wire:model.live="modeLangganan_form" class="input-fancy mt-1.5 w-full px-4 py-3 rounded-xl text-sm outline-none">
+                        <option value="trial">Trial</option>
+                        <option value="pro">Pro</option>
+                    </select>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Trial habis / Pro lewat tanggal -> menu Tandon &amp; Galeri otomatis terkunci</p>
+                </div>
+
+                @if($modeLangganan_form === 'trial')
+                <div>
+                    <label for="trialBerakhirAt_form" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Trial Berakhir</label>
+                    <input id="trialBerakhirAt_form" wire:model="trialBerakhirAt_form" type="date" class="input-fancy mt-1.5 w-full px-4 py-3 rounded-xl text-sm outline-none">
+                    @error('trialBerakhirAt_form') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                </div>
+                @else
+                <div>
+                    <label for="proBerakhirAt_form" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Pro Berakhir (kosongkan = tanpa batas)</label>
+                    <input id="proBerakhirAt_form" wire:model="proBerakhirAt_form" type="date" class="input-fancy mt-1.5 w-full px-4 py-3 rounded-xl text-sm outline-none">
+                    @error('proBerakhirAt_form') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                </div>
+                @endif
+
                 <div class="flex gap-3 pt-2 sm:max-w-xs sm:ml-auto">
                     <button type="button" wire:click="$set('showModalOwner', false)" class="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 py-3.5 rounded-xl text-sm font-bold transition dark:text-white">Batal</button>
                     <button type="submit" class="btn-primary flex-1 py-3.5 rounded-xl text-sm font-bold transition-all">{{ $isEditModeOwner ? 'Update' : 'Simpan' }}</button>

@@ -4,7 +4,9 @@ namespace App\Livewire\Superadmin;
 use Livewire\Component;
 use App\Models\Superadmin;
 use App\Models\Owner;
+use App\Models\Saran;
 use App\Models\ActivityLog;
+use App\Support\RememberMe;
 use Illuminate\Support\Facades\Hash;
 
 class Dashboard extends Component
@@ -17,6 +19,7 @@ class Dashboard extends Component
 
     public $searchOwner = '';
     public $namaOwner_form, $namaUsahaOwner_form, $usernameOwner_form, $passwordOwner_form, $alamatOwner_form;
+    public $modeLangganan_form = 'trial', $trialBerakhirAt_form, $proBerakhirAt_form;
     public $editIdOwner = null;
     public $showModalOwner = false;
     public $isEditModeOwner = false;
@@ -26,7 +29,12 @@ class Dashboard extends Component
     public function mount()
     {
         if (!session()->has('superadmin_id')) {
-            return redirect('/superadmin/login');
+            // belum ada session - coba auto-login lewat cookie "ingat saya"
+            if ($superadmin = RememberMe::cariDariCookie('remember_superadmin', Superadmin::class)) {
+                session(['superadmin_id' => $superadmin->id, 'superadmin_nama' => $superadmin->nama]);
+            } else {
+                return redirect('/superadmin/login');
+            }
         }
         $this->superadmin = Superadmin::find(session('superadmin_id'));
 
@@ -150,6 +158,9 @@ public function openCreateOwner()
 {
     if ($this->blockIfReadOnly()) return;
     $this->reset(['namaOwner_form','namaUsahaOwner_form','usernameOwner_form','passwordOwner_form','alamatOwner_form','editIdOwner']);
+    $this->modeLangganan_form = 'trial';
+    $this->trialBerakhirAt_form = now()->addDays(14)->format('Y-m-d');
+    $this->proBerakhirAt_form = '';
     $this->isEditModeOwner = false;
     $this->showModalOwner = true;
 }
@@ -164,6 +175,9 @@ public function openEditOwner($id)
     $this->usernameOwner_form = $data->username;
     $this->passwordOwner_form = '';
     $this->alamatOwner_form = $data->alamat;
+    $this->modeLangganan_form = $data->mode_langganan;
+    $this->trialBerakhirAt_form = $data->trial_berakhir_at?->format('Y-m-d') ?? now()->addDays(14)->format('Y-m-d');
+    $this->proBerakhirAt_form = $data->pro_berakhir_at?->format('Y-m-d') ?? '';
     $this->isEditModeOwner = true;
     $this->showModalOwner = true;
 }
@@ -178,6 +192,9 @@ public function saveOwner()
         'usernameOwner_form' => 'required|unique:owners,username,'.$this->editIdOwner,
         'passwordOwner_form' => $this->isEditModeOwner ? 'nullable|min:6' : 'required|min:6',
         'alamatOwner_form' => 'required',
+        'modeLangganan_form' => 'required|in:trial,pro',
+        'trialBerakhirAt_form' => $this->modeLangganan_form === 'trial' ? 'required|date' : 'nullable|date',
+        'proBerakhirAt_form' => 'nullable|date',
     ]);
 
     $payload = [
@@ -185,6 +202,9 @@ public function saveOwner()
         'nama_usaha' => $this->namaUsahaOwner_form,
         'username' => $this->usernameOwner_form,
         'alamat' => $this->alamatOwner_form,
+        'mode_langganan' => $this->modeLangganan_form,
+        'trial_berakhir_at' => $this->modeLangganan_form === 'trial' ? $this->trialBerakhirAt_form : null,
+        'pro_berakhir_at' => $this->modeLangganan_form === 'pro' && $this->proBerakhirAt_form ? $this->proBerakhirAt_form : null,
     ];
     if ($this->passwordOwner_form) {
         $payload['password'] = Hash::make($this->passwordOwner_form);
@@ -216,8 +236,15 @@ public function deleteOwner($id)
 
     public function logout()
     {
+        RememberMe::lupakan('remember_superadmin', $this->superadmin);
         session()->forget(['superadmin_id', 'superadmin_nama']);
         return $this->redirect('/superadmin/login', navigate: true);
+    }
+
+    // --- SARAN & MASUKAN ---
+    public function tandaiDibacaSaran($id)
+    {
+        Saran::whereKey($id)->update(['dibaca' => true]);
     }
 
     public function render()
@@ -245,6 +272,8 @@ public function deleteOwner($id)
 
     $logs = ActivityLog::latest('id')->limit(15)->get();
 
-    return view('livewire.superadmin.dashboard', ['list' => $list, 'listOwner' => $listOwner, 'logs' => $logs]);
+    $sarans = Saran::with('owner')->latest('id')->get();
+
+    return view('livewire.superadmin.dashboard', ['list' => $list, 'listOwner' => $listOwner, 'logs' => $logs, 'sarans' => $sarans]);
 }
 }

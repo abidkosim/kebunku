@@ -7,6 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 class Superadmin extends Model
 {
     protected $table = 'superadmins';
-    protected $fillable = ['nama','username','password','akses'];
+    protected $fillable = ['nama','username','password','akses','remember_token'];
     protected $hidden = ['password'];
 }

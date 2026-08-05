@@ -3,15 +3,14 @@ namespace App\Livewire\Superadmin\Auth;
 
 use App\Models\Superadmin;
 use Livewire\Component;
-use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\Hash;
 
 class Register extends Component
 {
-   
     public $nama;
     public $username;
     public $password;
+    public $showPassword = false;
 
     public function register()
     {

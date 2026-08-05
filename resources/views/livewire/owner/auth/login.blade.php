@@ -34,6 +34,11 @@
                     @error('password') <p class="mt-2 text-xs text-red-500">{{ $message }}</p> @enderror
                 </div>
 
+                <label class="flex items-center gap-2 cursor-pointer w-fit">
+                    <input wire:model="remember" type="checkbox" class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-slate-900 focus:ring-slate-900">
+                    <span class="text-sm text-slate-600 dark:text-slate-400">Ingat saya</span>
+                </label>
+
                 <button type="submit" wire:loading.attr="disabled" class="btn-primary w-full py-3.5 rounded-xl text-sm font-bold transition-all disabled:opacity-70">
                     <span wire:loading.remove>Login Sekarang</span>
                     <span wire:loading>Memproses...</span>
