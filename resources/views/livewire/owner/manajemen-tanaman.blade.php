@@ -220,7 +220,7 @@
                 @elseif($latestTahap->jenis === 'pendewasaan')
                     <div class="glass-card rounded-2xl p-5 text-center">
                         <p class="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-3">🌾 {{ $sudahMulaiPanen ? 'Sedang/Sudah Dipanen' : 'Siap Panen' }}</p>
-                        <a href="{{ route($routePrefix.'.tanaman.panen') }}?tanaman={{ $selected->id }}" class="btn-primary inline-block px-6 py-3 rounded-xl text-sm font-bold transition-all">{{ $sudahMulaiPanen ? 'Lihat Panen' : 'Kelola Panen' }} &rarr;</a>
+                        <a href="{{ route($routePrefix.'.tanaman.panen') }}?tanaman={{ $selected->id }}" wire:navigate class="btn-primary inline-block px-6 py-3 rounded-xl text-sm font-bold transition-all">{{ $sudahMulaiPanen ? 'Lihat Panen' : 'Kelola Panen' }} &rarr;</a>
                     </div>
                 @endif
             @endif
@@ -267,7 +267,7 @@
                     </div>
                 </div>
                 @if($kebunId_form && $this->mejaTersedia->isEmpty())
-                    <p class="text-xs text-amber-600 dark:text-amber-400">Semua meja di kebun ini sedang terpakai. <a href="{{ route($routePrefix.'.tanaman.kebun') }}" class="underline font-bold">Tambah meja baru?</a></p>
+                    <p class="text-xs text-amber-600 dark:text-amber-400">Semua meja di kebun ini sedang terpakai. <a href="{{ route($routePrefix.'.tanaman.kebun') }}" wire:navigate class="underline font-bold">Tambah meja baru?</a></p>
                 @endif
                 <div>
                     <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Catatan</label>

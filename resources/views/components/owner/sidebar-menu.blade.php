@@ -16,7 +16,7 @@
             </button>
             <div x-show="open" x-transition class="pl-4 mt-1 space-y-1" style="display:none;">
                 @foreach($menu['children'] as $child)
-                    <a href="{{ $child['href'] }}" class="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold transition {{ $active === $child['slug'] ? 'bg-slate-900 dark:bg-slate-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700' }}">
+                    <a href="{{ $child['href'] }}" wire:navigate class="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold transition {{ $active === $child['slug'] ? 'bg-slate-900 dark:bg-slate-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700' }}">
                         <span class="w-1.5 h-1.5 rounded-full shrink-0 {{ $active === $child['slug'] ? 'bg-white' : 'bg-slate-300 dark:bg-slate-600' }}"></span>
                         {{ $child['label'] }}
                     </a>
@@ -25,7 +25,7 @@
         </div>
     @else
         @php $terkunci = $aksesTerkunci && in_array($menu['slug'], $fiturTerkunci, true); @endphp
-        <a href="{{ $menu['href'] }}" class="sidebar-link {{ $active === $menu['slug'] ? 'active' : 'text-slate-600 dark:text-slate-300' }} {{ $terkunci ? 'opacity-50' : '' }} flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold">
+        <a href="{{ $menu['href'] }}" wire:navigate class="sidebar-link {{ $active === $menu['slug'] ? 'active' : 'text-slate-600 dark:text-slate-300' }} {{ $terkunci ? 'opacity-50' : '' }} flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold">
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $menu['icon'] }}"/></svg>
             <span class="flex-1 truncate">{{ $menu['label'] }}</span>
             @if($terkunci)

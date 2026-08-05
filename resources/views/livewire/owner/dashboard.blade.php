@@ -62,7 +62,7 @@
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <a href="{{ route('owner.tanaman') }}" class="glass-card rounded-2xl p-5 flex items-center gap-3 hover:shadow-lg transition-shadow">
+        <a href="{{ route('owner.tanaman') }}" wire:navigate class="glass-card rounded-2xl p-5 flex items-center gap-3 hover:shadow-lg transition-shadow">
             <div class="w-11 h-11 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3c-2.5 2.5-4 5-4 8a4 4 0 008 0c0-3-1.5-5.5-4-8z"/></svg>
             </div>
@@ -71,7 +71,7 @@
                 <p class="text-xs text-slate-400 dark:text-slate-500">Siklus semai - panen</p>
             </div>
         </a>
-        <a href="{{ route('owner.pembeli') }}" class="glass-card rounded-2xl p-5 flex items-center gap-3 hover:shadow-lg transition-shadow">
+        <a href="{{ route('owner.pembeli') }}" wire:navigate class="glass-card rounded-2xl p-5 flex items-center gap-3 hover:shadow-lg transition-shadow">
             <div class="w-11 h-11 rounded-xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.25 8.25h19.5M2.25 8.25v10.5a1.5 1.5 0 001.5 1.5h16.5a1.5 1.5 0 001.5-1.5V8.25"/></svg>
             </div>
@@ -80,7 +80,7 @@
                 <p class="text-xs text-slate-400 dark:text-slate-500">Riwayat & hutang</p>
             </div>
         </a>
-        <a href="{{ route('owner.keuangan') }}" class="glass-card rounded-2xl p-5 flex items-center gap-3 hover:shadow-lg transition-shadow">
+        <a href="{{ route('owner.keuangan') }}" wire:navigate class="glass-card rounded-2xl p-5 flex items-center gap-3 hover:shadow-lg transition-shadow">
             <div class="w-11 h-11 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0 8v1m0-1v-1m0 4v1m0-1v-1M4.5 19.5h15A1.5 1.5 0 0021 18V6a1.5 1.5 0 00-1.5-1.5h-15A1.5 1.5 0 003 6v12a1.5 1.5 0 001.5 1.5z"/></svg>
             </div>
@@ -89,7 +89,7 @@
                 <p class="text-xs text-slate-400 dark:text-slate-500">Pemasukan & pengeluaran</p>
             </div>
         </a>
-        <a href="{{ route('owner.laporan') }}" class="glass-card rounded-2xl p-5 flex items-center gap-3 hover:shadow-lg transition-shadow">
+        <a href="{{ route('owner.laporan') }}" wire:navigate class="glass-card rounded-2xl p-5 flex items-center gap-3 hover:shadow-lg transition-shadow">
             <div class="w-11 h-11 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             </div>
@@ -103,7 +103,7 @@
     {{-- Detail Laporan Bulan Ini --}}
     <div class="flex items-center justify-between mb-3">
         <h3 class="font-extrabold text-sm dark:text-white">Detail Laporan Bulan Ini ({{ now()->translatedFormat('F Y') }})</h3>
-        <a href="{{ route('owner.laporan') }}" class="text-xs font-bold text-slate-500 dark:text-slate-400 hover:underline">Laporan Lengkap &rarr;</a>
+        <a href="{{ route('owner.laporan') }}" wire:navigate class="text-xs font-bold text-slate-500 dark:text-slate-400 hover:underline">Laporan Lengkap &rarr;</a>
     </div>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div class="glass-card rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-slate-800/20 p-5">
@@ -152,6 +152,6 @@
 
     <div class="glass-card rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-slate-800/20 p-6">
         <h3 class="font-extrabold text-sm dark:text-white mb-2">Mulai dari sini</h3>
-        <p class="text-sm text-slate-500 dark:text-slate-400">Kelola anggota tim kamu lewat menu <a href="{{ route('owner.user') }}" class="font-bold text-slate-900 dark:text-white hover:underline">Manajemen User</a> di dropdown nama kamu (kanan atas). Modul Tandon & Galeri masih dalam pengembangan.</p>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Kelola anggota tim kamu lewat menu <a href="{{ route('owner.user') }}" wire:navigate class="font-bold text-slate-900 dark:text-white hover:underline">Manajemen User</a> di dropdown nama kamu (kanan atas). Modul Tandon & Galeri masih dalam pengembangan.</p>
     </div>
 </x-owner.shell>

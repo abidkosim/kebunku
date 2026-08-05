@@ -171,7 +171,7 @@
                     </p>
                 </div>
                 @if($p->status_pembayaran !== 'lunas')
-                <a href="{{ route('owner.tanaman.panen') }}?tanaman={{ $p->tanaman_id }}" class="text-xs font-bold px-3 py-1.5 rounded-lg btn-primary shrink-0 w-fit">Catat Bayar &rarr;</a>
+                <a href="{{ route('owner.tanaman.panen') }}?tanaman={{ $p->tanaman_id }}" wire:navigate class="text-xs font-bold px-3 py-1.5 rounded-lg btn-primary shrink-0 w-fit">Catat Bayar &rarr;</a>
                 @endif
             </div>
             @empty

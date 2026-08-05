@@ -17,7 +17,7 @@
         </div>
 
         <div class="space-y-3">
-            <a href="{{ route('portal.tanaman') }}" class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
+            <a href="{{ route('portal.tanaman') }}" wire:navigate class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
                 <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3c-2.5 2.5-4 5-4 8a4 4 0 008 0c0-3-1.5-5.5-4-8z"/></svg>
                 </div>
@@ -26,7 +26,7 @@
                     <p class="text-xs text-slate-400 dark:text-slate-500">Siklus semai sampai siap panen</p>
                 </div>
             </a>
-            <a href="{{ route('portal.tanaman.semprot') }}" class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
+            <a href="{{ route('portal.tanaman.semprot') }}" wire:navigate class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
                 <div class="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m6.36.64l-2.12 2.12M21 12h-3m.36 6.36l-2.12-2.12M12 21v-3m-6.36-.64l2.12-2.12M3 12h3m-.36-6.36l2.12 2.12M12 12a3 3 0 100 6 3 3 0 000-6z"/></svg>
                 </div>
@@ -35,7 +35,7 @@
                     <p class="text-xs text-slate-400 dark:text-slate-500">Semua jadwal semprot</p>
                 </div>
             </a>
-            <a href="{{ route('portal.tanaman.panen') }}" class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
+            <a href="{{ route('portal.tanaman.panen') }}" wire:navigate class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
                 <div class="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0 8v1m0-1v-1m0 4v1m0-1v-1"/></svg>
                 </div>
@@ -44,7 +44,7 @@
                     <p class="text-xs text-slate-400 dark:text-slate-500">Catat panen &amp; pembayaran</p>
                 </div>
             </a>
-            <a href="{{ route('portal.tanaman.kebun') }}" class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
+            <a href="{{ route('portal.tanaman.kebun') }}" wire:navigate class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
                 <div class="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z"/></svg>
                 </div>
@@ -57,7 +57,7 @@
     @else
         <div class="flex items-center justify-between mb-3">
             <h3 class="font-extrabold text-xs dark:text-white">Ringkasan {{ now()->translatedFormat('F Y') }}</h3>
-            <a href="{{ route('portal.laporan') }}" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:underline">Laporan Lengkap &rarr;</a>
+            <a href="{{ route('portal.laporan') }}" wire:navigate class="text-[10px] font-bold text-slate-500 dark:text-slate-400 hover:underline">Laporan Lengkap &rarr;</a>
         </div>
         <div class="grid grid-cols-2 gap-3 mb-5">
             <div class="glass-card rounded-2xl p-4 col-span-2">
@@ -105,7 +105,7 @@
         @endif
 
         <div class="space-y-3">
-            <a href="{{ route('portal.keuangan') }}" class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
+            <a href="{{ route('portal.keuangan') }}" wire:navigate class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
                 <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0 8v1m0-1v-1m0 4v1m0-1v-1"/></svg>
                 </div>
@@ -114,7 +114,7 @@
                     <p class="text-xs text-slate-400 dark:text-slate-500">Pengeluaran &amp; pemasukan</p>
                 </div>
             </a>
-            <a href="{{ route('portal.laporan') }}" class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
+            <a href="{{ route('portal.laporan') }}" wire:navigate class="glass-card rounded-2xl p-4 flex items-center gap-3 active:scale-95 transition-transform">
                 <div class="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 </div>
