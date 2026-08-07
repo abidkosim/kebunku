@@ -759,3 +759,16 @@ Owner minta ikon di navbar sesuai inisial dan nama sesuai nama usaha. Dicek: kot
 	b. Diverifikasi lewat browser sungguhan pakai akun asli - ikon & nama utama berubah sesuai nama usaha ("BIDS FARM" -> ikon "B") di beberapa halaman berbeda, class `truncate` kekonfirmasi terpasang. Diverifikasi juga di VPS produksi dengan akun yang sama.
 
 	c. DEPLOY: commit `fb71cda`. Cuma perubahan Blade (tidak ada migrasi/composer/npm) - deploy VPS jadi lebih ringan (`git pull` + `view:cache` + restart `php8.3-fpm` saja, `queue`/`reverb` tidak perlu ikut restart karena tidak menyentuh apapun yang mereka pakai).
+
+=====================================================================
+47. Favicon tab browser sesuai inisial nama usaha (lanjutan item 46) [SELESAI - 2026-08-07]
+=====================================================================
+Owner minta favicon (ikon tab browser) juga disesuaikan, lanjutan dari fix logo navbar item 46. Sebelumnya cuma favicon default Laravel bawaan (`public/favicon.ico`), sama untuk semua owner, tidak ada `<link rel="icon">` sama sekali di halaman manapun.
+
+	a. Karena app ini multi-tenant (tiap Owner beda `nama_usaha`) dan tiap halaman `pages/owner-*.blade.php` (12 file) + `staff-dashboard.blade.php` (1 file) punya `<head>` sendiri-sendiri (bukan 1 layout bersama), dibuat partial reusable baru `resources/views/partials/favicon.blade.php` yang di-`@include` di ke-13 file itu - bukan file favicon statis, tapi SVG dinamis lewat data URI (`data:image/svg+xml,...`) yang dihitung ulang tiap request sesuai owner yang sedang login. Gaya visual disamakan dengan kotak logo navbar item 46 (gradient gelap slate-900->slate-700, sudut rounded, huruf putih tebal) - inisial dihitung dengan rumus yang SAMA (`strtoupper(substr($nama_usaha,0,1))`).
+		Partial ini baca owner langsung dari `session('owner_id')` atau (kalau staff) `session('user_id')` -> relasi ke Owner - SENGAJA tidak pakai fallback cookie "ingat saya" penuh kayak `RequiresOwnerAuth` (cuma buat favicon kosmetik, bukan gerbang keamanan, jadi fallback simpel ke huruf "K" kalau session kosong sudah cukup, tidak perlu duplikasi logic auth yang lengkap).
+		Halaman login/superadmin/monitor publik SENGAJA tidak disentuh (tidak ada konteks owner yang login di situ, tetap pakai favicon.ico default).
+
+	b. Diverifikasi lewat browser sungguhan: SVG di-decode dari `<link rel="icon">` yang dirender, dicek isinya bener-bener SVG valid dengan huruf yang sesuai ("BIDS FARM" -> "B") - dicek di 3 titik berbeda (halaman dashboard, halaman lain/Galeri, DAN dashboard staff via jalur session `user_id` yang beda dari owner) - ketiganya konsisten. Diverifikasi juga di VPS produksi dengan cara serupa (grep pola ter-encode `%3EB%3C` dari response HTML asli, bukan cuma percaya kode).
+
+	c. DEPLOY: commit `892f52e`. Sama seperti item 46, cuma Blade (tidak ada migrasi) - deploy VPS ringan, cuma `view:cache` + restart `php8.3-fpm`.
