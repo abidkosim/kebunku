@@ -3,7 +3,7 @@
 @if($show)
 <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div wire:click="{{ $closeMethod }}" class="modal-backdrop absolute inset-0"></div>
-    <div class="modal-content relative w-full sm:max-w-lg bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl shadow-2xl border border-white/50 dark:border-slate-700/50 overflow-hidden">
+    <div class="modal-content relative w-full sm:max-w-lg bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl shadow-2xl border border-white/50 dark:border-slate-700/50 overflow-hidden">
         <div class="p-6 pb-5 bg-gradient-to-br from-amber-50 to-red-50 dark:from-amber-950/30 dark:to-red-950/20 border-b border-amber-100 dark:border-amber-900/30">
             <div class="flex items-start gap-3.5">
                 <div class="shrink-0 w-11 h-11 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
@@ -38,7 +38,7 @@
             @endforeach
         </div>
 
-        <div class="p-4 border-t border-slate-200/50 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50">
+        <div class="p-4 border-t border-slate-200/50 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800">
             <button type="button" wire:click="{{ $closeMethod }}" class="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-3 rounded-xl text-sm font-bold hover:opacity-90 transition">Mengerti, Tutup</button>
         </div>
     </div>

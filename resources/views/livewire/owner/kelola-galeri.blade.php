@@ -23,7 +23,7 @@
                 @else
                     <video src="{{ $item->file_url }}#t=0.1" class="w-full h-full object-cover" preload="metadata" muted playsinline></video>
                     <div class="absolute inset-0 flex items-center justify-center bg-slate-900/20">
-                        <div class="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                        <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-lg">
                             <svg class="w-4 h-4 text-slate-900 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                         </div>
                     </div>
@@ -69,7 +69,7 @@
          x-on:livewire-upload-cancel.window="uploading = false"
          class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModalUpload', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-sm bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-sm bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="font-extrabold text-lg dark:text-white">Unggah Foto/Video</h3>
                 <button type="button" wire:click="$set('showModalUpload', false)" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">✕</button>
@@ -93,7 +93,7 @@
                     <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">JPG/PNG/GIF/WEBP atau MP4/MOV/AVI/WEBM, maks 50MB</p>
                 </div>
                 @if($file_upload)
-                    <div class="rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700/50 aspect-video flex items-center justify-center">
+                    <div class="rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 aspect-video flex items-center justify-center">
                         @if($file_upload->isPreviewable())
                             @if(str_starts_with($file_upload->getMimeType() ?? '', 'video/'))
                                 <video src="{{ $file_upload->temporaryUrl() }}" class="max-h-full max-w-full" controls></video>
@@ -125,7 +125,7 @@
     @if($showModalView && $selected)
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div wire:click="$set('showModalView', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full max-w-lg bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/50 dark:border-slate-700/50 overflow-hidden">
+        <div class="modal-content relative w-full max-w-lg bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-white/50 dark:border-slate-700/50 overflow-hidden">
             <div class="bg-black flex items-center justify-center max-h-[70vh]">
                 @if($selected->jenis === 'foto')
                     <img src="{{ $selected->file_url }}" class="max-h-[70vh] w-full object-contain">
@@ -162,7 +162,7 @@
     @if($showModalEdit)
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModalEdit', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-sm bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-sm bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="font-extrabold text-lg dark:text-white">Edit Keterangan</h3>
                 <button type="button" wire:click="$set('showModalEdit', false)" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">✕</button>

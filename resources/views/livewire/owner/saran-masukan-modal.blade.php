@@ -7,7 +7,7 @@
     @if($showModal)
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModal', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-md bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-md bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <div>
                     <h3 class="font-extrabold text-lg dark:text-white">Saran &amp; Masukan</h3>

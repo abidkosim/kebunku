@@ -52,8 +52,8 @@
                             <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 align-middle">{{ $item->created_at->format('d M Y') }}</td>
                             <td class="px-6 py-4 align-middle" onclick="event.stopPropagation()">
                                 <div class="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                    <button wire:click="openEditTanaman({{ $item->id }})" aria-label="Edit tanaman" class="action-btn w-8 h-8 rounded-full bg-white/70 dark:bg-slate-700/70 border border-slate-200 dark:border-slate-600 hover:bg-slate-900 dark:hover:bg-slate-600 hover:text-white dark:hover:text-white hover:border-slate-900 dark:hover:border-slate-500 shadow-sm flex items-center justify-center transition-all dark:text-slate-300">✎</button>
-                                    <button wire:click="deleteTanaman({{ $item->id }})" wire:confirm="Yakin hapus tanaman {{ $item->nama_tanaman }}? Semua tahap & jadwalnya juga akan terhapus." aria-label="Hapus tanaman" class="action-btn delete w-8 h-8 rounded-full bg-white/70 dark:bg-slate-700/70 border border-slate-200 dark:border-slate-600 hover:bg-red-500 hover:text-white hover:border-red-500 shadow-sm flex items-center justify-center transition-all dark:text-slate-300">✕</button>
+                                    <button wire:click="openEditTanaman({{ $item->id }})" aria-label="Edit tanaman" class="action-btn w-8 h-8 rounded-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-900 dark:hover:bg-slate-600 hover:text-white dark:hover:text-white hover:border-slate-900 dark:hover:border-slate-500 shadow-sm flex items-center justify-center transition-all dark:text-slate-300">✎</button>
+                                    <button wire:click="deleteTanaman({{ $item->id }})" wire:confirm="Yakin hapus tanaman {{ $item->nama_tanaman }}? Semua tahap & jadwalnya juga akan terhapus." aria-label="Hapus tanaman" class="action-btn delete w-8 h-8 rounded-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-red-500 hover:text-white hover:border-red-500 shadow-sm flex items-center justify-center transition-all dark:text-slate-300">✕</button>
                                 </div>
                             </td>
                         </tr>
@@ -77,8 +77,8 @@
                     @endif
                 </div>
                 <div class="flex gap-2 shrink-0" onclick="event.stopPropagation()">
-                    <button wire:click="openEditTanaman({{ $item->id }})" aria-label="Edit" class="w-9 h-9 rounded-full bg-slate-100/70 dark:bg-slate-700/50 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition dark:text-slate-300">✎</button>
-                    <button wire:click="deleteTanaman({{ $item->id }})" wire:confirm="Hapus?" aria-label="Hapus" class="w-9 h-9 rounded-full bg-slate-100/70 dark:bg-slate-700/50 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-500 dark:hover:text-red-400 transition dark:text-slate-300">✕</button>
+                    <button wire:click="openEditTanaman({{ $item->id }})" aria-label="Edit" class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition dark:text-slate-300">✎</button>
+                    <button wire:click="deleteTanaman({{ $item->id }})" wire:confirm="Hapus?" aria-label="Hapus" class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-500 dark:hover:text-red-400 transition dark:text-slate-300">✕</button>
                 </div>
             </div>
             @empty
@@ -135,8 +135,8 @@
             @endif
         </div>
         <div class="flex gap-2">
-            <button wire:click="openEditTanaman({{ $selected->id }})" class="w-9 h-9 rounded-full bg-slate-100/70 dark:bg-slate-700/50 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition dark:text-slate-300">✎</button>
-            <button wire:click="deleteTanaman({{ $selected->id }})" wire:confirm="Yakin hapus tanaman ini? Semua tahap & jadwalnya juga akan terhapus." class="w-9 h-9 rounded-full bg-slate-100/70 dark:bg-slate-700/50 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-500 dark:hover:text-red-400 transition dark:text-slate-300">✕</button>
+            <button wire:click="openEditTanaman({{ $selected->id }})" class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition dark:text-slate-300">✎</button>
+            <button wire:click="deleteTanaman({{ $selected->id }})" wire:confirm="Yakin hapus tanaman ini? Semua tahap & jadwalnya juga akan terhapus." class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-500 dark:hover:text-red-400 transition dark:text-slate-300">✕</button>
         </div>
     </div>
 
@@ -254,7 +254,7 @@
     @if($showModalTanaman)
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModalTanaman', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-md bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-md bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="font-extrabold text-lg dark:text-white">{{ $isEditModeTanaman ? 'Edit Tanaman' : 'Tambah Tanaman' }}</h3>
                 <button type="button" wire:click="$set('showModalTanaman', false)" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">✕</button>
@@ -307,7 +307,7 @@
     @if($showModalTahap)
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModalTahap', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-md bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-md bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="font-extrabold text-lg dark:text-white">{{ $tahapMode === 'mulai' ? 'Mulai '.ucfirst($jenisTahap_form) : 'Edit Tahap '.ucfirst($jenisTahap_form) }}</h3>
                 <button type="button" wire:click="$set('showModalTahap', false)" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">✕</button>
@@ -353,7 +353,7 @@
     @if($showModalSelesai)
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModalSelesai', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-md bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-md bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="font-extrabold text-lg dark:text-white">Tandai Tahap Selesai</h3>
                 <button type="button" wire:click="$set('showModalSelesai', false)" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">✕</button>

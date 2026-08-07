@@ -63,17 +63,17 @@
             </div>
 
             <div class="grid grid-cols-3 gap-2 text-center">
-                <div class="rounded-xl p-2.5 {{ $item->ppm_terkini === null ? 'bg-slate-50 dark:bg-slate-800/50' : ($ppmOk ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20') }}">
+                <div class="rounded-xl p-2.5 {{ $item->ppm_terkini === null ? 'bg-slate-50 dark:bg-slate-800' : ($ppmOk ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20') }}">
                     <p class="text-[9px] text-slate-400 dark:text-slate-500 font-bold">PPM</p>
                     <p class="text-sm font-extrabold mt-0.5 {{ $item->ppm_terkini === null ? 'text-slate-400' : ($ppmOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400') }}">{{ $item->ppm_terkini ?? '-' }}</p>
                     <p class="text-[9px] text-slate-400 dark:text-slate-500">tgt {{ $item->target_ppm }}</p>
                 </div>
-                <div class="rounded-xl p-2.5 {{ $item->ph_terkini === null ? 'bg-slate-50 dark:bg-slate-800/50' : ($phOk ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20') }}">
+                <div class="rounded-xl p-2.5 {{ $item->ph_terkini === null ? 'bg-slate-50 dark:bg-slate-800' : ($phOk ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-amber-50 dark:bg-amber-900/20') }}">
                     <p class="text-[9px] text-slate-400 dark:text-slate-500 font-bold">pH</p>
                     <p class="text-sm font-extrabold mt-0.5 {{ $item->ph_terkini === null ? 'text-slate-400' : ($phOk ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400') }}">{{ $item->ph_terkini ?? '-' }}</p>
                     <p class="text-[9px] text-slate-400 dark:text-slate-500">tgt {{ $item->target_ph }}</p>
                 </div>
-                <div class="rounded-xl p-2.5 bg-slate-50 dark:bg-slate-800/50">
+                <div class="rounded-xl p-2.5 bg-slate-50 dark:bg-slate-800">
                     <p class="text-[9px] text-slate-400 dark:text-slate-500 font-bold">SUHU</p>
                     <p class="text-sm font-extrabold mt-0.5 text-slate-600 dark:text-slate-300">{{ $item->suhu_terkini ?? '-' }}°</p>
                     <p class="text-[9px] text-slate-400 dark:text-slate-500">&nbsp;</p>
@@ -210,15 +210,15 @@
              x-init="init({{ $selected->id }})"
              x-on:tandon-grafik-data.window="onData($event.detail)"
              class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div class="rounded-xl bg-slate-50/60 dark:bg-slate-800/40 p-3">
+            <div class="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                 <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">PPM</p>
                 <div class="h-40"><canvas x-ref="canvasPpm"></canvas></div>
             </div>
-            <div class="rounded-xl bg-slate-50/60 dark:bg-slate-800/40 p-3">
+            <div class="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                 <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">pH</p>
                 <div class="h-40"><canvas x-ref="canvasPh"></canvas></div>
             </div>
-            <div class="rounded-xl bg-slate-50/60 dark:bg-slate-800/40 p-3">
+            <div class="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                 <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Suhu</p>
                 <div class="h-40"><canvas x-ref="canvasSuhu"></canvas></div>
             </div>
@@ -298,29 +298,29 @@
                     <button wire:click="generateUlangToken({{ $selected->id }})" wire:confirm="Generate ulang token? ESP32 yang masih pakai token lama harus diupdate." class="shrink-0 text-xs font-bold px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition">Generate Ulang</button>
                 </div>
             </div>
-            <div class="rounded-xl bg-slate-50/60 dark:bg-slate-800/40 p-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            <div class="rounded-xl bg-slate-50 dark:bg-slate-800 p-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 <p class="font-bold text-slate-600 dark:text-slate-300 mb-1.5">Alur yang disarankan:</p>
                 <p>1. Tiap ESP32 tandon baca sensor (ppm/pH/suhu), publish ke broker MQTT gratis - direkomendasikan <a href="https://www.hivemq.com/mqtt-cloud-broker/" target="_blank" class="underline font-semibold">HiveMQ Cloud (free tier)</a>, topic unik per tandon mis. <code class="font-mono">kebunku/tandon/{{ $selected->device_token }}/sensor</code>.</p>
                 <p class="mt-1">2. ESP32 main subscribe semua topic tandon di kebun ini, lalu forward tiap pembacaan ke URL endpoint di atas via HTTPS POST (header token di atas), body JSON <code class="font-mono">{"ppm":..,"ph":..,"suhu":..}</code>.</p>
                 <p class="mt-1">3. Belum ada ESP32 fisik? Tes jalurnya dari terminal server: <code class="font-mono">php artisan tandon:uji-iot {{ $selected->id }} --kali=5 --jeda=5</code> - datanya akan muncul di kartu &amp; grafik atas secara realtime, persis seperti data asli nanti.</p>
             </div>
 
-            <div class="rounded-xl bg-slate-50/60 dark:bg-slate-800/40 p-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            <div class="rounded-xl bg-slate-50 dark:bg-slate-800 p-4 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
                 <p class="font-bold text-slate-600 dark:text-slate-300 mb-2">Rekomendasi pin ESP32 per sensor:</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div class="rounded-lg bg-white/60 dark:bg-slate-900/40 p-2.5">
+                    <div class="rounded-lg bg-white dark:bg-slate-900 p-2.5">
                         <p class="font-bold text-slate-700 dark:text-slate-200">Sensor TDS/EC (ppm)</p>
                         <p class="mt-0.5">Pin analog <span class="font-mono font-semibold">GPIO34</span> (ADC1, input-only)</p>
                     </div>
-                    <div class="rounded-lg bg-white/60 dark:bg-slate-900/40 p-2.5">
+                    <div class="rounded-lg bg-white dark:bg-slate-900 p-2.5">
                         <p class="font-bold text-slate-700 dark:text-slate-200">Sensor pH</p>
                         <p class="mt-0.5">Pin analog <span class="font-mono font-semibold">GPIO33</span> (ADC1, channel beda dari TDS)</p>
                     </div>
-                    <div class="rounded-lg bg-white/60 dark:bg-slate-900/40 p-2.5">
+                    <div class="rounded-lg bg-white dark:bg-slate-900 p-2.5">
                         <p class="font-bold text-slate-700 dark:text-slate-200">Sensor Suhu (DS18B20)</p>
                         <p class="mt-0.5">Pin digital <span class="font-mono font-semibold">GPIO4</span> (OneWire) + resistor pull-up 4.7kΩ wajib</p>
                     </div>
-                    <div class="rounded-lg bg-white/60 dark:bg-slate-900/40 p-2.5">
+                    <div class="rounded-lg bg-white dark:bg-slate-900 p-2.5">
                         <p class="font-bold text-slate-700 dark:text-slate-200">Modul Relay (auto-dosing)</p>
                         <p class="mt-0.5">Pin digital <span class="font-mono font-semibold">GPIO25/26/27</span> (hindari pin strapping 0,2,12,15)</p>
                     </div>
@@ -338,7 +338,7 @@
     @if($showModal)
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModal', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-sm bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-sm bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="font-extrabold text-lg dark:text-white">{{ $isEditMode ? 'Edit Tandon' : 'Tambah Tandon' }}</h3>
                 <button type="button" wire:click="$set('showModal', false)" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">✕</button>

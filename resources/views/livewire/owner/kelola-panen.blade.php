@@ -209,7 +209,7 @@
     @if($showModalMulai)
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModalMulai', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-sm bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-sm bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="font-extrabold text-lg dark:text-white">Mulai Panen</h3>
                 <button type="button" wire:click="$set('showModalMulai', false)" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">✕</button>
@@ -238,7 +238,7 @@
     @if($showModalPanen)
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModalPanen', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-lg bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-lg bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="font-extrabold text-lg dark:text-white">Catat Panen</h3>
                 <button type="button" wire:click="$set('showModalPanen', false)" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">✕</button>
@@ -280,7 +280,7 @@
                     <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Metode Pembayaran</label>
                     <div class="grid grid-cols-3 gap-2 mt-1.5">
                         @foreach(['cash' => 'Cash', 'sebagian' => 'Sebagian', 'hutang' => 'Hutang'] as $val => $label)
-                        <label class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold cursor-pointer transition {{ $metodeBayar_form === $val ? 'bg-slate-900 dark:bg-slate-600 text-white border-slate-900 dark:border-slate-600' : 'bg-white dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600' }}">
+                        <label class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold cursor-pointer transition {{ $metodeBayar_form === $val ? 'bg-slate-900 dark:bg-slate-600 text-white border-slate-900 dark:border-slate-600' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600' }}">
                             <input type="radio" wire:model.live="metodeBayar_form" value="{{ $val }}" class="hidden">
                             {{ $label }}
                         </label>
@@ -323,14 +323,14 @@
     @if($showModalPembayaran)
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModalPembayaran', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-md bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-md bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="font-extrabold text-lg dark:text-white">Catat Pembayaran</h3>
                 <button type="button" wire:click="$set('showModalPembayaran', false)" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">✕</button>
             </div>
             <form wire:submit="simpanPembayaran" class="space-y-4">
                 @if($panenUntukBayar && $panenUntukBayar->harga_per_kg !== null)
-                <div class="rounded-xl bg-slate-50 dark:bg-slate-700/50 p-3 text-xs flex items-center justify-between">
+                <div class="rounded-xl bg-slate-50 dark:bg-slate-700 p-3 text-xs flex items-center justify-between">
                     <span class="text-slate-500 dark:text-slate-400">Kekurangan yang harus dibayar</span>
                     <span class="font-extrabold text-red-600 dark:text-red-400">Rp {{ number_format($panenUntukBayar->sisa_hutang, 0, ',', '.') }}</span>
                 </div>
@@ -360,7 +360,7 @@
     @if($showModalTutup)
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModalTutup', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-md bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-md bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="font-extrabold text-lg dark:text-white">Tutup Siklus Panen</h3>
                 <button type="button" wire:click="$set('showModalTutup', false)" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">✕</button>

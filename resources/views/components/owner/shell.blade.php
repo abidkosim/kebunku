@@ -26,7 +26,7 @@ $menus = [
     <nav class="glass-card sticky top-0 z-30 border-b border-slate-200/60 shadow-sm">
         <div class="mx-auto px-4 lg:px-6 h-16 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <button @click="sidebarOpen = !sidebarOpen" aria-label="Toggle sidebar" class="lg:hidden w-9 h-9 rounded-full bg-white/80 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                <button @click="sidebarOpen = !sidebarOpen" aria-label="Toggle sidebar" class="lg:hidden w-9 h-9 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
                     <svg class="w-4 h-4 text-slate-700 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
                 <div class="w-10 h-10 shrink-0 bg-gradient-to-br from-slate-900 to-slate-700 rounded-xl flex items-center justify-center text-white font-extrabold text-lg shadow-lg shadow-slate-900/20">{{ strtoupper(substr($owner->nama_usaha, 0, 1)) }}</div>
@@ -43,7 +43,7 @@ $menus = [
                     $adaNotifBaru = $notifTerbaru && (!$owner->notifikasi_dibaca_at || $notifTerbaru->gt($owner->notifikasi_dibaca_at));
                 @endphp
                 <div class="relative" x-data="{ notifOpen: false }">
-                    <button @click="notifOpen = !notifOpen; if (notifOpen) $wire.tandaiNotifikasiDibaca()" aria-label="Notifikasi" class="theme-toggle w-9 h-9 rounded-full bg-white/80 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shadow-sm hover:shadow-md transition-all relative">
+                    <button @click="notifOpen = !notifOpen; if (notifOpen) $wire.tandaiNotifikasiDibaca()" aria-label="Notifikasi" class="theme-toggle w-9 h-9 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shadow-sm hover:shadow-md transition-all relative">
                         <svg class="w-4 h-4 text-slate-700 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
                         @if($adaNotifBaru)
                             <span class="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-slate-800"></span>
@@ -52,7 +52,7 @@ $menus = [
                     <div x-show="notifOpen" @click.outside="notifOpen = false" x-transition
                          class="absolute right-0 mt-2 w-80 sm:w-96 glass-card rounded-2xl shadow-2xl border border-white/50 dark:border-slate-700/50 overflow-hidden z-40"
                          style="display:none;">
-                        <div class="p-4 border-b border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between bg-white/50 dark:bg-slate-800/50">
+                        <div class="p-4 border-b border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between bg-white dark:bg-slate-800">
                             <h4 class="font-extrabold text-sm dark:text-white">Aktivitas Terbaru</h4>
                             <span class="text-[10px] mono text-slate-400 dark:text-slate-500">{{ $logs->count() }} log</span>
                         </div>
@@ -73,14 +73,14 @@ $menus = [
                 </div>
 
                 {{-- Dark/Light Toggle --}}
-                <button @click="darkMode = !darkMode" aria-label="Toggle theme" class="theme-toggle w-9 h-9 rounded-full bg-white/80 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shadow-sm hover:shadow-md transition-all">
+                <button @click="darkMode = !darkMode" aria-label="Toggle theme" class="theme-toggle w-9 h-9 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shadow-sm hover:shadow-md transition-all">
                     <svg x-show="!darkMode" class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                     <svg x-show="darkMode" class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                 </button>
 
                 {{-- Dropdown Nama Owner --}}
                 <div class="relative" x-data="{ userMenuOpen: false }">
-                    <button @click="userMenuOpen = !userMenuOpen" class="flex items-center gap-2 pl-1 pr-1.5 py-1 md:pl-4 md:pr-1.5 md:py-1.5 bg-white/60 dark:bg-slate-800/60 rounded-full border border-slate-200/70 dark:border-slate-700/50 shadow-sm hover:shadow-md transition-all">
+                    <button @click="userMenuOpen = !userMenuOpen" class="flex items-center gap-2 pl-1 pr-1.5 py-1 md:pl-4 md:pr-1.5 md:py-1.5 bg-white dark:bg-slate-800 rounded-full border border-slate-200/70 dark:border-slate-700/50 shadow-sm hover:shadow-md transition-all">
                         <p class="hidden md:block text-sm font-bold leading-none text-slate-800 dark:text-slate-200">{{ $owner->nama }}</p>
                         <x-avatar :name="$owner->nama" :photo="$owner->foto_url" size="w-8 h-8" />
                         <svg class="hidden md:block w-3 h-3 text-slate-400 dark:text-slate-500 transition-transform" :class="{ 'rotate-180': userMenuOpen }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>

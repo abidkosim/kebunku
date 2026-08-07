@@ -132,7 +132,7 @@
     @if($showModal)
     <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModal', false)" class="modal-backdrop absolute inset-0"></div>
-        <div class="modal-content relative w-full sm:max-w-sm bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
+        <div class="modal-content relative w-full sm:max-w-sm bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50">
             <div class="flex justify-between items-start mb-4">
                 <h3 class="font-extrabold text-lg dark:text-white">{{ $isEditMode ? 'Edit Catatan' : 'Tambah Catatan' }}</h3>
                 <button type="button" wire:click="$set('showModal', false)" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center transition text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">✕</button>
@@ -142,7 +142,7 @@
                     <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Jenis</label>
                     <div class="grid grid-cols-2 gap-2 mt-1.5">
                         @foreach(['pengeluaran' => 'Pengeluaran', 'pemasukan' => 'Pemasukan'] as $val => $label)
-                        <label class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold cursor-pointer transition {{ $jenis_form === $val ? 'bg-slate-900 dark:bg-slate-600 text-white border-slate-900 dark:border-slate-600' : 'bg-white dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600' }}">
+                        <label class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold cursor-pointer transition {{ $jenis_form === $val ? 'bg-slate-900 dark:bg-slate-600 text-white border-slate-900 dark:border-slate-600' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600' }}">
                             <input type="radio" wire:model.live="jenis_form" value="{{ $val }}" class="hidden">
                             {{ $label }}
                         </label>
