@@ -129,8 +129,31 @@ return [
     | storage. By default, no PHP classes will be unserialized from your
     | cache to prevent gadget chain attacks if your APP_KEY is leaked.
     |
+    | Redis-backed CRUD caching (Cache::tags()->remember()) stores real
+    | Eloquent Collections/Models/Paginators, so an explicit allowlist is
+    | needed here - kept as a whitelist (not `true`) on purpose, so this
+    | still blocks any unrelated/unexpected class from being unserialized.
+    |
     */
 
-    'serializable_classes' => false,
+    'serializable_classes' => [
+        \Illuminate\Support\Collection::class,
+        \Illuminate\Database\Eloquent\Collection::class,
+        \Illuminate\Pagination\LengthAwarePaginator::class,
+        \App\Models\Owner::class,
+        \App\Models\User::class,
+        \App\Models\Kebun::class,
+        \App\Models\Meja::class,
+        \App\Models\Tanaman::class,
+        \App\Models\Tahapan::class,
+        \App\Models\Jadwal::class,
+        \App\Models\Panen::class,
+        \App\Models\Pembeli::class,
+        \App\Models\Keuangan::class,
+        \App\Models\Galeri::class,
+        \App\Models\Tandon::class,
+        \App\Models\TandonBacaan::class,
+        \App\Models\ActivityLog::class,
+    ],
 
 ];

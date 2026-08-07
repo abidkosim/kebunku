@@ -4,13 +4,14 @@ namespace App\Livewire\Owner;
 
 use Livewire\Component;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\User;
 use App\Models\ActivityLog;
 use Illuminate\Support\Facades\Hash;
 
 class ManajemenUser extends Component
 {
-    use RequiresOwnerAuth;
+    use RequiresOwnerAuth, CachesOwnerData;
 
     public $search = '';
 
@@ -86,6 +87,7 @@ class ManajemenUser extends Component
             $this->catat('tambah', "Menambahkan user baru '{$this->nama_form}'");
         }
 
+        $this->forgetOwnerCache(['users', 'activity_log']);
         $this->showModal = false;
         $this->dispatch('alert-success', message: $msg);
     }
@@ -96,25 +98,28 @@ class ManajemenUser extends Component
         $namaTarget = $target->nama;
         $target->delete();
         $this->catat('hapus', "Menghapus user '{$namaTarget}'");
+        $this->forgetOwnerCache(['users', 'activity_log']);
         $this->dispatch('alert-success', message: 'Data user berhasil dihapus');
     }
 
     public function render()
     {
-        $list = User::where('id_owners', $this->owner->id)
-            ->when($this->search, function ($q) {
-                $q->where(function ($qq) {
-                    $qq->where('nama', 'like', '%'.$this->search.'%')
-                       ->orWhere('username', 'like', '%'.$this->search.'%');
-                });
-            })
-            ->latest('id')
-            ->get();
+        $cacheKey = 'users:list:s'.md5($this->search ?? '');
+        $list = $this->rememberOwnerCache(['users'], $cacheKey, 300, fn () =>
+            User::where('id_owners', $this->owner->id)
+                ->when($this->search, function ($q) {
+                    $q->where(function ($qq) {
+                        $qq->where('nama', 'like', '%'.$this->search.'%')
+                           ->orWhere('username', 'like', '%'.$this->search.'%');
+                    });
+                })
+                ->latest('id')
+                ->get()
+        );
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
 
         return view('livewire.owner.manajemen-user', ['list' => $list, 'logs' => $logs]);
     }

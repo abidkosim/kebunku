@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class TandonBacaan extends Model
 {
@@ -32,6 +33,17 @@ class TandonBacaan extends Model
     {
         static::creating(function (self $bacaan) {
             $bacaan->created_at ??= now();
+        });
+
+        // Grafik riwayat di MonitorTandon di-cache (query-nya berat, baris ini cuma
+        // masuk ~tiap 5 menit per tandon lewat throttle di SimulasikanTandon) - begitu
+        // ada baris baru masuk, cache grafik punya tandon ini WAJIB dianggap basi
+        // supaya titik data terbaru langsung kelihatan, bukan nunggu TTL habis.
+        static::created(function (self $bacaan) {
+            $idOwners = $bacaan->tandon?->kebun?->id_owners;
+            if ($idOwners) {
+                Cache::tags(["owner{$idOwners}:tandon_bacaan:{$bacaan->id_tandon}"])->flush();
+            }
         });
     }
 }

@@ -5,12 +5,13 @@ namespace App\Livewire\Owner;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\Keuangan;
 use App\Models\ActivityLog;
 
 class KelolaKeuangan extends Component
 {
-    use RequiresOwnerAuth, WithPagination;
+    use RequiresOwnerAuth, WithPagination, CachesOwnerData;
 
     public $perPage = 10;
 
@@ -140,6 +141,7 @@ class KelolaKeuangan extends Component
             $this->catat('tambah', "Mencatat {$labelJenis} '{$this->kategori_form}': Rp".number_format($this->jumlah_form, 0, ',', '.'));
         }
 
+        $this->forgetOwnerCache(['keuangan', 'activity_log']);
         $this->showModal = false;
         $this->dispatch('alert-success', message: 'Catatan keuangan disimpan');
     }
@@ -150,23 +152,29 @@ class KelolaKeuangan extends Component
         $keterangan = "Menghapus catatan {$item->jenis} '{$item->kategori}': Rp".number_format($item->jumlah, 0, ',', '.');
         $item->delete();
         $this->catat('hapus', $keterangan);
+        $this->forgetOwnerCache(['keuangan', 'activity_log']);
         $this->dispatch('alert-success', message: 'Catatan keuangan dihapus');
     }
 
     public function render()
     {
-        $list = $this->keuanganPeriodeQuery()
-            ->latest('tanggal')
-            ->latest('id')
-            ->paginate($this->perPage);
+        $periodeSig = md5($this->dariTanggal.'|'.$this->sampaiTanggal);
+        $cacheKey = 'keuangan:list:page'.$this->getPage().':per'.$this->perPage.':p'.$periodeSig;
 
-        $totalPemasukan = (float) $this->keuanganPeriodeQuery()->where('jenis', 'pemasukan')->sum('jumlah');
-        $totalPengeluaran = (float) $this->keuanganPeriodeQuery()->where('jenis', 'pengeluaran')->sum('jumlah');
+        $list = $this->rememberOwnerCache(['keuangan'], $cacheKey, 300, fn () =>
+            $this->keuanganPeriodeQuery()->latest('tanggal')->latest('id')->paginate($this->perPage)
+        );
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
+        $totalPemasukan = $this->rememberOwnerCache(['keuangan'], "keuangan:total-masuk:p{$periodeSig}", 300, fn () =>
+            (float) $this->keuanganPeriodeQuery()->where('jenis', 'pemasukan')->sum('jumlah')
+        );
+        $totalPengeluaran = $this->rememberOwnerCache(['keuangan'], "keuangan:total-keluar:p{$periodeSig}", 300, fn () =>
+            (float) $this->keuanganPeriodeQuery()->where('jenis', 'pengeluaran')->sum('jumlah')
+        );
+
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
 
         return view('livewire.owner.kelola-keuangan', [
             'list' => $list,

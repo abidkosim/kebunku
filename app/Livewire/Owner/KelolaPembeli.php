@@ -5,12 +5,13 @@ namespace App\Livewire\Owner;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\Pembeli;
 use App\Models\ActivityLog;
 
 class KelolaPembeli extends Component
 {
-    use RequiresOwnerAuth, WithPagination;
+    use RequiresOwnerAuth, WithPagination, CachesOwnerData;
 
     public $search = '';
     public $perPage = 10;
@@ -90,6 +91,7 @@ class KelolaPembeli extends Component
             $this->catat('tambah', "Menambahkan pembeli baru '{$pembeli->nama}'");
         }
 
+        $this->forgetOwnerCache(['pembeli', 'activity_log']);
         $this->showModal = false;
         $this->dispatch('alert-success', message: 'Data pembeli disimpan');
     }
@@ -106,28 +108,33 @@ class KelolaPembeli extends Component
         $nama = $pembeli->nama;
         $pembeli->delete();
         $this->catat('hapus', "Menghapus pembeli '{$nama}'");
+        $this->forgetOwnerCache(['pembeli', 'activity_log']);
         $this->dispatch('alert-success', message: 'Pembeli dihapus');
     }
 
     public function render()
     {
-        $list = $this->pembeliQuery()
-            ->withCount('panens')
-            ->with('panens')
-            ->when($this->search, function ($q) {
-                $q->where('nama', 'like', '%'.$this->search.'%');
-            })
-            ->latest('id')
-            ->paginate($this->perPage);
+        $cacheKey = 'pembeli:list:page'.$this->getPage().':per'.$this->perPage.':s'.md5($this->search ?? '');
+        $list = $this->rememberOwnerCache(['pembeli'], $cacheKey, 300, fn () =>
+            $this->pembeliQuery()
+                ->withCount('panens')
+                ->with('panens')
+                ->when($this->search, function ($q) {
+                    $q->where('nama', 'like', '%'.$this->search.'%');
+                })
+                ->latest('id')
+                ->paginate($this->perPage)
+        );
 
         $selected = $this->selectedPembeliId
-            ? $this->pembeliQuery()->with(['panens.tanaman'])->find($this->selectedPembeliId)
+            ? $this->rememberOwnerCache(['pembeli', 'panen'], "pembeli:detail:{$this->selectedPembeliId}", 300, fn () =>
+                $this->pembeliQuery()->with(['panens.tanaman'])->find($this->selectedPembeliId)
+            )
             : null;
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
 
         return view('livewire.owner.kelola-pembeli', [
             'list' => $list,

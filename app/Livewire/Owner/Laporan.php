@@ -4,6 +4,7 @@ namespace App\Livewire\Owner;
 
 use Livewire\Component;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\Tanaman;
 use App\Models\Tahapan;
 use App\Models\Panen;
@@ -14,7 +15,7 @@ use App\Models\ActivityLog;
 
 class Laporan extends Component
 {
-    use RequiresOwnerAuth;
+    use RequiresOwnerAuth, CachesOwnerData;
 
     public $dariTanggal;
     public $sampaiTanggal;
@@ -68,6 +69,23 @@ class Laporan extends Component
     }
 
     public function render()
+    {
+        $periodeSig = md5($this->dariTanggal.'|'.$this->sampaiTanggal);
+        $rekap = $this->rememberOwnerCache(
+            ['panen', 'tanaman', 'keuangan', 'pembeli', 'kebun'],
+            "laporan:rekap:p{$periodeSig}",
+            180,
+            fn () => $this->hitungRekap()
+        );
+
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
+
+        return view('livewire.owner.laporan', $rekap + ['logs' => $logs]);
+    }
+
+    private function hitungRekap(): array
     {
         $panens = $this->panenQuery()->get();
         $totalBerat = (float) $panens->sum(fn ($p) => (float) $p->berat_kg);
@@ -138,12 +156,7 @@ class Laporan extends Component
             ->sortByDesc('total')
             ->values();
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
-
-        return view('livewire.owner.laporan', [
+        return [
             'totalBerat' => $totalBerat,
             'totalPendapatanPanen' => $totalPendapatanPanen,
             'totalBelumDibayar' => $totalBelumDibayar,
@@ -155,7 +168,6 @@ class Laporan extends Component
             'rekapKebun' => $rekapKebun,
             'rekapKeuangan' => $rekapKeuangan,
             'pembeliHutangTerbesar' => $pembeliHutangTerbesar,
-            'logs' => $logs,
-        ]);
+        ];
     }
 }

@@ -7,6 +7,7 @@ use Livewire\Attributes\On;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\Galeri;
 use App\Models\ActivityLog;
 use App\Jobs\BuatThumbnailGaleri;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 
 class KelolaGaleri extends Component
 {
-    use RequiresOwnerAuth, WithFileUploads, WithPagination;
+    use RequiresOwnerAuth, WithFileUploads, WithPagination, CachesOwnerData;
 
     public $perPage = 12;
 
@@ -112,6 +113,7 @@ class KelolaGaleri extends Component
         }
 
         $this->catat('tambah', "Mengunggah {$jenis} baru ke Galeri");
+        $this->forgetOwnerCache(['galeri', 'activity_log']);
         $this->siarkanPerubahan();
 
         $this->showModalUpload = false;
@@ -149,6 +151,7 @@ class KelolaGaleri extends Component
 
         $item->update(['keterangan' => $this->keteranganEdit_form]);
         $this->catat('update', "Mengubah keterangan Galeri milik '{$item->actor_nama}'");
+        $this->forgetOwnerCache(['galeri', 'activity_log']);
         $this->siarkanPerubahan();
 
         $this->showModalEdit = false;
@@ -169,22 +172,27 @@ class KelolaGaleri extends Component
         $item->delete();
 
         $this->catat('hapus', "Menghapus {$jenis} di Galeri milik '{$namaPengunggah}'");
+        $this->forgetOwnerCache(['galeri', 'activity_log']);
         $this->siarkanPerubahan();
         $this->dispatch('alert-success', message: 'Berhasil dihapus dari Galeri');
     }
 
     public function render()
     {
-        $list = $this->galeriQuery()
-            ->latest('id')
-            ->paginate($this->perPage);
+        $cacheKey = 'galeri:list:page'.$this->getPage().':per'.$this->perPage;
+        $list = $this->rememberOwnerCache(['galeri'], $cacheKey, 300, fn () =>
+            $this->galeriQuery()->latest('id')->paginate($this->perPage)
+        );
 
-        $selected = $this->viewId ? $this->galeriQuery()->find($this->viewId) : null;
+        $selected = $this->viewId
+            ? $this->rememberOwnerCache(['galeri'], "galeri:detail:{$this->viewId}", 300, fn () =>
+                $this->galeriQuery()->find($this->viewId)
+            )
+            : null;
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
 
         return view('livewire.owner.kelola-galeri', [
             'list' => $list,

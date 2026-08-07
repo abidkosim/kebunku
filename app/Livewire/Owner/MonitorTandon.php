@@ -6,6 +6,7 @@ use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\ActivityLog;
 use App\Models\Kebun;
 use App\Models\Tandon;
@@ -15,7 +16,7 @@ use Illuminate\Support\Str;
 
 class MonitorTandon extends Component
 {
-    use RequiresOwnerAuth, WithPagination;
+    use RequiresOwnerAuth, WithPagination, CachesOwnerData;
 
     public $search = '';
     public $perPage = 10;
@@ -141,6 +142,7 @@ class MonitorTandon extends Component
                 'maks_percobaan_dosing' => $this->maks_percobaan_dosing_form,
             ]);
             $this->catat('update', "Mengubah target tandon '{$tandon->nama}': PPM {$this->target_ppm_form}, pH {$this->target_ph_form}");
+            $this->forgetOwnerCache(['activity_log']);
         } else {
             $tandon = Tandon::create([
                 'id_kebun' => $this->id_kebun_form,
@@ -158,6 +160,7 @@ class MonitorTandon extends Component
             ]);
             SimulasikanTandon::dispatch($tandon->id)->delay(now()->addSeconds(5));
             $this->catat('tambah', "Menambahkan tandon baru '{$tandon->nama}'");
+            $this->forgetOwnerCache(['activity_log']);
         }
 
         $this->showModal = false;
@@ -176,6 +179,7 @@ class MonitorTandon extends Component
             SimulasikanTandon::dispatch($tandon->id)->delay(now()->addSeconds(3));
             $this->catat('update', "Mengaktifkan kembali simulasi sensor tandon '{$tandon->nama}'");
         }
+        $this->forgetOwnerCache(['activity_log']);
     }
 
     public function ubahSumberData($id)
@@ -189,6 +193,7 @@ class MonitorTandon extends Component
             $tandon->update(['sumber_data' => 'iot', 'status_simulasi' => 'berhenti', 'status_pompa' => null]);
             $this->catat('update', "Tandon '{$tandon->nama}' dipindah ke mode IoT (sensor asli lewat ESP32)");
         }
+        $this->forgetOwnerCache(['activity_log']);
     }
 
     public function generateUlangToken($id)
@@ -196,6 +201,7 @@ class MonitorTandon extends Component
         $tandon = $this->tandonQuery()->findOrFail($id);
         $tandon->update(['device_token' => Str::random(40)]);
         $this->catat('update', "Token perangkat IoT tandon '{$tandon->nama}' di-generate ulang");
+        $this->forgetOwnerCache(['activity_log']);
         $this->dispatch('alert-success', message: 'Token perangkat baru sudah dibuat');
     }
 
@@ -204,6 +210,7 @@ class MonitorTandon extends Component
         $this->owner->update(['kunci_monitor' => Str::random(32)]);
         $this->owner->refresh();
         $this->catat('update', 'Link Monitor Publik dibuat/di-generate ulang');
+        $this->forgetOwnerCache(['activity_log']);
         $this->dispatch('alert-success', message: 'Link monitor publik sudah dibuat');
     }
 
@@ -214,6 +221,7 @@ class MonitorTandon extends Component
         $nama = $tandon->nama;
         $tandon->delete();
         $this->catat('hapus', "Menghapus tandon '{$nama}'");
+        $this->forgetOwnerCache(['activity_log']);
         $this->dispatch('alert-success', message: 'Tandon dihapus');
     }
 
@@ -237,32 +245,48 @@ class MonitorTandon extends Component
             ->latest('id')
             ->paginate($this->perPage);
 
+        // Sengaja TIDAK di-cache: $list/$selected berisi ppm/ph/suhu terkini yang ditulis
+        // ulang tiap 8 detik oleh SimulasikanTandon dan didorong realtime lewat broadcast
+        // TandonUpdated - cache di sini cuma akan basi dalam hitungan detik atau (kalau
+        // di-flush tiap tick juga) menambah beban Redis tanpa manfaat cache sama sekali.
         $selected = $this->selectedTandonId
             ? $this->tandonQuery()->with('kebun')->find($this->selectedTandonId)
             : null;
 
-        $kebunList = $this->kebunQuery()->orderBy('nama_kebun')->get();
+        $kebunList = $this->rememberOwnerCache(['kebun'], 'kebun:dropdown', 300, fn () =>
+            $this->kebunQuery()->orderBy('nama_kebun')->get()
+        );
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
 
         if ($selected) {
             $mulai = $this->rentangGrafik === '7hari' ? now()->subDays(7) : now()->subDay();
             $formatJam = $this->rentangGrafik === '7hari' ? 'd/m H:i' : 'H:i';
 
-            $bacaan = TandonBacaan::where('id_tandon', $selected->id)
-                ->where('created_at', '>=', $mulai)
-                ->orderBy('created_at')
-                ->get();
+            // Ini AMAN di-cache (beda dengan $list/$selected di atas): baris riwayat cuma
+            // masuk ~tiap 5 menit (throttle di SimulasikanTandon), dan TandonBacaan::booted()
+            // sudah flush tag ini begitu ada baris baru - jadi query berat ini kena cache
+            // hampir selalu, cuma miss tepat setelah ada data baru masuk.
+            $grafik = $this->rememberOwnerCache(
+                ["tandon_bacaan:{$selected->id}"],
+                "tandon:grafik:{$selected->id}:{$this->rentangGrafik}",
+                600,
+                function () use ($selected, $mulai, $formatJam) {
+                    $bacaan = TandonBacaan::where('id_tandon', $selected->id)
+                        ->where('created_at', '>=', $mulai)
+                        ->orderBy('created_at')
+                        ->get();
 
-            $grafik = [
-                'labels' => $bacaan->map(fn ($b) => $b->created_at->format($formatJam))->values(),
-                'ppm' => $bacaan->pluck('ppm')->values(),
-                'ph' => $bacaan->pluck('ph')->values(),
-                'suhu' => $bacaan->pluck('suhu')->values(),
-            ];
+                    return [
+                        'labels' => $bacaan->map(fn ($b) => $b->created_at->format($formatJam))->values(),
+                        'ppm' => $bacaan->pluck('ppm')->values(),
+                        'ph' => $bacaan->pluck('ph')->values(),
+                        'suhu' => $bacaan->pluck('suhu')->values(),
+                    ];
+                }
+            );
 
             $this->dispatch('tandon-grafik-data', tandonId: $selected->id, grafik: $grafik);
         }

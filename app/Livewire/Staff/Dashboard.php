@@ -4,6 +4,7 @@ namespace App\Livewire\Staff;
 
 use Livewire\Component;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\Tanaman;
 use App\Models\Panen;
 use App\Models\Keuangan;
@@ -11,7 +12,7 @@ use App\Models\ActivityLog;
 
 class Dashboard extends Component
 {
-    use RequiresOwnerAuth;
+    use RequiresOwnerAuth, CachesOwnerData;
 
     public function mount()
     {
@@ -24,6 +25,22 @@ class Dashboard extends Component
     }
 
     public function render()
+    {
+        $data = $this->rememberOwnerCache(
+            ['tanaman', 'panen', 'keuangan'],
+            "dashboard:staff:{$this->actorType}:bulan".now()->format('Ym'),
+            120,
+            fn () => $this->hitungData()
+        );
+
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
+
+        return view('livewire.staff.dashboard', array_merge($data, ['logs' => $logs]));
+    }
+
+    private function hitungData(): array
     {
         $data = [];
 
@@ -63,11 +80,6 @@ class Dashboard extends Component
                 ->values();
         }
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
-
-        return view('livewire.staff.dashboard', array_merge($data, ['logs' => $logs]));
+        return $data;
     }
 }

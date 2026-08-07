@@ -6,6 +6,7 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Computed;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\Tanaman;
 use App\Models\Tahapan;
 use App\Models\Kebun;
@@ -20,7 +21,7 @@ use Carbon\Carbon;
  */
 class ManajemenTanaman extends Component
 {
-    use RequiresOwnerAuth, WithPagination;
+    use RequiresOwnerAuth, WithPagination, CachesOwnerData;
 
     public $search = '';
     public $perPage = 10;
@@ -164,6 +165,7 @@ class ManajemenTanaman extends Component
             $this->catat('tambah', "Menambahkan tanaman baru '{$this->namaTanaman_form}' di meja #{$meja->nomor}");
         }
 
+        $this->forgetOwnerCache(['tanaman', 'activity_log']);
         $this->showModalTanaman = false;
         $this->dispatch('alert-success', message: $msg);
     }
@@ -174,6 +176,7 @@ class ManajemenTanaman extends Component
         $nama = $target->nama_tanaman;
         $target->delete();
         $this->catat('hapus', "Menghapus tanaman '{$nama}'");
+        $this->forgetOwnerCache(['tanaman', 'activity_log']);
         if ($this->selectedTanamanId == $id) {
             $this->selectedTanamanId = null;
         }
@@ -263,6 +266,7 @@ class ManajemenTanaman extends Component
             $this->catat('update', "Mengupdate tahap {$tahap->jenis} untuk tanaman '{$tahap->tanaman->nama_tanaman}'");
         }
 
+        $this->forgetOwnerCache(['tanaman', 'activity_log']);
         $this->showModalTahap = false;
         $this->dispatch('alert-success', message: 'Tahap berhasil disimpan');
     }
@@ -299,6 +303,7 @@ class ManajemenTanaman extends Component
             ? "Menyelesaikan tahap {$tahap->jenis} tanaman '{$tahap->tanaman->nama_tanaman}': {$this->jumlahLolos_form}/{$tahap->jumlah_awal} hidup ({$mati} mati)"
             : "Menyelesaikan tahap {$tahap->jenis} tanaman '{$tahap->tanaman->nama_tanaman}': lengkap {$this->jumlahLolos_form}/{$tahap->jumlah_awal} hidup";
         $this->catat('update', $keterangan);
+        $this->forgetOwnerCache(['tanaman', 'activity_log']);
 
         $this->showModalSelesai = false;
         $this->dispatch('alert-success', message: 'Tahap ditandai selesai');
@@ -316,29 +321,36 @@ class ManajemenTanaman extends Component
 
         $tahap->update(['status' => 'berjalan', 'tanggal_selesai_aktual' => null, 'jumlah_lolos' => null]);
         $this->catat('update', "Membatalkan status selesai tahap {$tahap->jenis} untuk tanaman '{$tahap->tanaman->nama_tanaman}'");
+        $this->forgetOwnerCache(['tanaman', 'activity_log']);
         $this->dispatch('alert-success', message: 'Status tahap dikembalikan ke berjalan');
     }
 
     public function render()
     {
-        $list = $this->tanamanQuery()
-            ->with(['tahapans', 'meja.kebun'])
-            ->when($this->search, function ($q) {
-                $q->where('nama_tanaman', 'like', '%'.$this->search.'%');
-            })
-            ->latest('id')
-            ->paginate($this->perPage);
+        $cacheKey = 'tanaman:list:page'.$this->getPage().':per'.$this->perPage.':s'.md5($this->search ?? '');
+        $list = $this->rememberOwnerCache(['tanaman'], $cacheKey, 300, fn () =>
+            $this->tanamanQuery()
+                ->with(['tahapans', 'meja.kebun'])
+                ->when($this->search, function ($q) {
+                    $q->where('nama_tanaman', 'like', '%'.$this->search.'%');
+                })
+                ->latest('id')
+                ->paginate($this->perPage)
+        );
 
         $selected = $this->selectedTanamanId
-            ? $this->tanamanQuery()->with(['tahapans', 'meja.kebun'])->find($this->selectedTanamanId)
+            ? $this->rememberOwnerCache(['tanaman'], "tanaman:detail:{$this->selectedTanamanId}", 300, fn () =>
+                $this->tanamanQuery()->with(['tahapans', 'meja.kebun'])->find($this->selectedTanamanId)
+            )
             : null;
 
-        $kebunList = Kebun::where('id_owners', $this->owner->id)->orderBy('nama_kebun')->get();
+        $kebunList = $this->rememberOwnerCache(['kebun'], 'kebun:dropdown', 300, fn () =>
+            Kebun::where('id_owners', $this->owner->id)->orderBy('nama_kebun')->get()
+        );
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
 
         return view('livewire.owner.manajemen-tanaman', [
             'list' => $list,

@@ -4,6 +4,7 @@ namespace App\Livewire\Owner;
 
 use Livewire\Component;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\User;
 use App\Models\Tanaman;
 use App\Models\Tahapan;
@@ -14,7 +15,7 @@ use App\Models\ActivityLog;
 
 class Dashboard extends Component
 {
-    use RequiresOwnerAuth;
+    use RequiresOwnerAuth, CachesOwnerData;
 
     public function mount()
     {
@@ -27,6 +28,22 @@ class Dashboard extends Component
     }
 
     public function render()
+    {
+        $data = $this->rememberOwnerCache(
+            ['tanaman', 'panen', 'keuangan', 'pembeli', 'users'],
+            'dashboard:owner:bulan'.now()->format('Ym'),
+            120,
+            fn () => $this->hitungData()
+        );
+
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
+
+        return view('livewire.owner.dashboard', $data + ['logs' => $logs]);
+    }
+
+    private function hitungData(): array
     {
         $totalUser = User::where('id_owners', $this->owner->id)->count();
         $totalTanamanAktif = Tanaman::where('id_owners', $this->owner->id)->whereNull('siklus_selesai_at')->count();
@@ -69,12 +86,7 @@ class Dashboard extends Component
             ->sortBy(fn ($row, $jenis) => array_search($jenis, $urutanTahap))
             ->values();
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
-
-        return view('livewire.owner.dashboard', [
+        return [
             'totalUser' => $totalUser,
             'totalTanamanAktif' => $totalTanamanAktif,
             'totalPembeli' => $totalPembeli,
@@ -85,7 +97,6 @@ class Dashboard extends Component
             'pengeluaranUmumBulanIni' => $pengeluaranUmumBulanIni,
             'labaRugiBulanIni' => $labaRugiBulanIni,
             'kematianPerTahapBulanIni' => $kematianPerTahapBulanIni,
-            'logs' => $logs,
-        ]);
+        ];
     }
 }

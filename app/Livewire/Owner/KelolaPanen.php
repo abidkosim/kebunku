@@ -5,6 +5,7 @@ namespace App\Livewire\Owner;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\Tanaman;
 use App\Models\Tahapan;
 use App\Models\Pembeli;
@@ -13,7 +14,7 @@ use App\Models\ActivityLog;
 
 class KelolaPanen extends Component
 {
-    use RequiresOwnerAuth, WithPagination;
+    use RequiresOwnerAuth, WithPagination, CachesOwnerData;
 
     public $search = '';
     public $perPage = 10;
@@ -118,6 +119,7 @@ class KelolaPanen extends Component
         ]);
 
         $this->catat('tambah', "Memulai panen tanaman '{$tanaman->nama_tanaman}' dengan {$this->jumlahAwalPanen_form} tanaman");
+        $this->forgetOwnerCache(['tanaman', 'panen', 'activity_log']);
 
         $this->showModalMulai = false;
         $this->dispatch('alert-success', message: 'Panen dimulai, silakan catat hasil panen');
@@ -194,6 +196,7 @@ class KelolaPanen extends Component
         $keterangan = "Mencatat panen tanaman '{$tanaman->nama_tanaman}': {$this->beratKg_form} kg ke pembeli '{$pembeli->nama}'"
             .($totalHarga !== null ? ' (Rp'.number_format($totalHarga, 0, ',', '.').", {$labelMetode[$this->metodeBayar_form]})" : ' (harga belum ditentukan)');
         $this->catat('tambah', $keterangan);
+        $this->forgetOwnerCache(['panen', 'pembeli', 'activity_log']);
 
         $this->showModalPanen = false;
         $this->dispatch('alert-success', message: 'Panen berhasil dicatat');
@@ -249,6 +252,7 @@ class KelolaPanen extends Component
         $keterangan = "Mencatat pembayaran panen tanaman '{$panen->tanaman->nama_tanaman}' dari '{$panen->pembeli->nama}': Rp".number_format($tambahan, 0, ',', '.')
             .($sisa > 0 ? ', sisa hutang Rp'.number_format($sisa, 0, ',', '.') : ', lunas');
         $this->catat('update', $keterangan);
+        $this->forgetOwnerCache(['panen', 'pembeli', 'activity_log']);
 
         $this->showModalPembayaran = false;
         $this->dispatch('alert-success', message: 'Pembayaran berhasil dicatat');
@@ -260,6 +264,7 @@ class KelolaPanen extends Component
         $nama = $panen->tanaman->nama_tanaman;
         $panen->delete();
         $this->catat('hapus', "Menghapus catatan panen tanaman '{$nama}'");
+        $this->forgetOwnerCache(['panen', 'pembeli', 'activity_log']);
         $this->dispatch('alert-success', message: 'Catatan panen dihapus');
     }
 
@@ -294,6 +299,7 @@ class KelolaPanen extends Component
         $tahap->tanaman->update(['siklus_selesai_at' => now()]);
 
         $this->catat('update', "Menutup siklus panen tanaman '{$tahap->tanaman->nama_tanaman}': {$this->jumlahLolosTutup_form}/{$tahap->jumlah_awal} berhasil dipanen. Meja sudah bebas lagi.");
+        $this->forgetOwnerCache(['tanaman', 'panen', 'activity_log']);
 
         $this->showModalTutup = false;
         $this->dispatch('alert-success', message: 'Siklus panen ditutup, meja sudah bebas lagi');
@@ -301,26 +307,36 @@ class KelolaPanen extends Component
 
     public function render()
     {
-        $list = $this->tanamanQuery()
-            ->with(['tahapans', 'meja.kebun'])
-            ->when($this->search, function ($q) {
-                $q->where('nama_tanaman', 'like', '%'.$this->search.'%');
-            })
-            ->latest('id')
-            ->paginate($this->perPage);
+        $cacheKey = 'panen:tanaman-siap:page'.$this->getPage().':per'.$this->perPage.':s'.md5($this->search ?? '');
+        $list = $this->rememberOwnerCache(['tanaman'], $cacheKey, 300, fn () =>
+            $this->tanamanQuery()
+                ->with(['tahapans', 'meja.kebun'])
+                ->when($this->search, function ($q) {
+                    $q->where('nama_tanaman', 'like', '%'.$this->search.'%');
+                })
+                ->latest('id')
+                ->paginate($this->perPage)
+        );
 
         $selected = $this->selectedTanamanId
-            ? $this->tanamanQuery()->with(['tahapans', 'panens.pembeli', 'meja.kebun'])->find($this->selectedTanamanId)
+            ? $this->rememberOwnerCache(['tanaman', 'panen'], "panen:tanaman-detail:{$this->selectedTanamanId}", 300, fn () =>
+                $this->tanamanQuery()->with(['tahapans', 'panens.pembeli', 'meja.kebun'])->find($this->selectedTanamanId)
+            )
             : null;
 
-        $pembeliList = Pembeli::where('id_owners', $this->owner->id)->orderBy('nama')->get();
+        $pembeliList = $this->rememberOwnerCache(['pembeli'], 'panen:pembeli-dropdown', 300, fn () =>
+            Pembeli::where('id_owners', $this->owner->id)->orderBy('nama')->get()
+        );
 
-        $panenUntukBayar = $this->panenUntukBayarId ? $this->panenQuery()->find($this->panenUntukBayarId) : null;
+        $panenUntukBayar = $this->panenUntukBayarId
+            ? $this->rememberOwnerCache(['panen'], "panen:untuk-bayar:{$this->panenUntukBayarId}", 300, fn () =>
+                $this->panenQuery()->find($this->panenUntukBayarId)
+            )
+            : null;
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
 
         return view('livewire.owner.kelola-panen', [
             'list' => $list,

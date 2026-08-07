@@ -5,13 +5,14 @@ namespace App\Livewire\Owner;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\Tanaman;
 use App\Models\Jadwal;
 use App\Models\ActivityLog;
 
 class JadwalSemprot extends Component
 {
-    use RequiresOwnerAuth, WithPagination;
+    use RequiresOwnerAuth, WithPagination, CachesOwnerData;
 
     public $search = '';
     public $perPage = 10;
@@ -99,6 +100,7 @@ class JadwalSemprot extends Component
             $this->catat('update', "Mengupdate jadwal semprot tanaman '{$jadwal->tanaman->nama_tanaman}'");
         }
 
+        $this->forgetOwnerCache(['jadwal_semprot', 'activity_log']);
         $this->showModal = false;
         $this->dispatch('alert-success', message: 'Jadwal semprot disimpan');
     }
@@ -109,28 +111,33 @@ class JadwalSemprot extends Component
         $nama = $jadwal->tanaman->nama_tanaman;
         $jadwal->delete();
         $this->catat('hapus', "Menghapus jadwal semprot tanaman '{$nama}'");
+        $this->forgetOwnerCache(['jadwal_semprot', 'activity_log']);
         $this->dispatch('alert-success', message: 'Jadwal semprot dihapus');
     }
 
     public function render()
     {
-        $list = $this->jadwalQuery()
-            ->with('tanaman')
-            ->when($this->search, function ($q) {
-                $q->whereHas('tanaman', fn ($qq) => $qq->where('nama_tanaman', 'like', '%'.$this->search.'%'));
-            })
-            ->latest('id')
-            ->paginate($this->perPage);
+        $cacheKey = 'jadwal:list:page'.$this->getPage().':per'.$this->perPage.':s'.md5($this->search ?? '');
+        $list = $this->rememberOwnerCache(['jadwal_semprot'], $cacheKey, 300, fn () =>
+            $this->jadwalQuery()
+                ->with('tanaman')
+                ->when($this->search, function ($q) {
+                    $q->whereHas('tanaman', fn ($qq) => $qq->where('nama_tanaman', 'like', '%'.$this->search.'%'));
+                })
+                ->latest('id')
+                ->paginate($this->perPage)
+        );
 
-        $tanamanAktif = Tanaman::where('id_owners', $this->owner->id)
-            ->whereNull('siklus_selesai_at')
-            ->orderBy('nama_tanaman')
-            ->get();
+        $tanamanAktif = $this->rememberOwnerCache(['tanaman'], 'tanaman:aktif-dropdown', 300, fn () =>
+            Tanaman::where('id_owners', $this->owner->id)
+                ->whereNull('siklus_selesai_at')
+                ->orderBy('nama_tanaman')
+                ->get()
+        );
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
 
         return view('livewire.owner.jadwal-semprot', [
             'list' => $list,

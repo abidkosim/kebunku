@@ -4,13 +4,14 @@ namespace App\Livewire\Owner;
 
 use Livewire\Component;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\Kebun;
 use App\Models\Meja;
 use App\Models\ActivityLog;
 
 class KelolaKebun extends Component
 {
-    use RequiresOwnerAuth;
+    use RequiresOwnerAuth, CachesOwnerData;
 
     public $showModalKebun = false;
     public $isEditModeKebun = false;
@@ -73,6 +74,7 @@ class KelolaKebun extends Component
             $this->catat('tambah', "Menambahkan kebun baru '{$this->namaKebun_form}' dengan {$this->jumlahMeja_form} meja");
         }
 
+        $this->forgetOwnerCache(['kebun', 'activity_log']);
         $this->showModalKebun = false;
         $this->dispatch('alert-success', message: 'Kebun berhasil disimpan');
     }
@@ -90,6 +92,7 @@ class KelolaKebun extends Component
         $nama = $kebun->nama_kebun;
         $kebun->delete();
         $this->catat('hapus', "Menghapus kebun '{$nama}'");
+        $this->forgetOwnerCache(['kebun', 'activity_log']);
         $this->dispatch('alert-success', message: 'Kebun berhasil dihapus');
     }
 
@@ -99,6 +102,7 @@ class KelolaKebun extends Component
         $nomorBaru = ($kebun->meja()->max('nomor') ?? 0) + 1;
         Meja::create(['kebun_id' => $kebun->id, 'nomor' => $nomorBaru]);
         $this->catat('tambah', "Menambahkan meja #{$nomorBaru} di kebun '{$kebun->nama_kebun}'");
+        $this->forgetOwnerCache(['kebun', 'activity_log']);
         $this->dispatch('alert-success', message: 'Meja baru ditambahkan');
     }
 
@@ -117,17 +121,19 @@ class KelolaKebun extends Component
         $nomor = $meja->nomor;
         $meja->delete();
         $this->catat('hapus', "Menghapus meja #{$nomor} di kebun '{$namaKebun}'");
+        $this->forgetOwnerCache(['kebun', 'activity_log']);
         $this->dispatch('alert-success', message: 'Meja berhasil dihapus');
     }
 
     public function render()
     {
-        $list = $this->kebunQuery()->with('meja.tanaman')->latest('id')->get();
+        $list = $this->rememberOwnerCache(['kebun'], 'kebun:list', 300, fn () =>
+            $this->kebunQuery()->with('meja.tanaman')->latest('id')->get()
+        );
 
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
 
         return view('livewire.owner.kelola-kebun', ['list' => $list, 'logs' => $logs]);
     }
