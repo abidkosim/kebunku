@@ -53,6 +53,10 @@ class ManajemenTanaman extends Component
     public $tanggalSelesaiAktual_form;
     public $catatanSelesai_form;
 
+    // Modal peringatan tenggat (H-2)
+    public $showPeringatanTenggat = false;
+    public $itemPeringatanTenggat = [];
+
     public function mount()
     {
         if ($redirect = $this->loadAuthenticatedOwner()) {
@@ -61,6 +65,59 @@ class ManajemenTanaman extends Component
         if ($redirect = $this->requireRole(['owner', 'teknisi'])) {
             return $redirect;
         }
+
+        $tanamanId = request()->query('tanaman');
+        if ($tanamanId && $this->tanamanQuery()->where('id', $tanamanId)->exists()) {
+            $this->selectedTanamanId = (int) $tanamanId;
+        }
+
+        $this->cekPeringatanTenggat();
+    }
+
+    /**
+     * Dipanggil sekali tiap page load (bukan tiap render, biar modal tidak "muncul lagi"
+     * gara-gara re-render dari interaksi lain di halaman yang sama). Tahap yang sudah
+     * pernah ditampilkan HARI INI (notif_h2_shown_at = hari ini) dilewati - jadi modal
+     * cuma muncul maksimal 1x per hari per tahap, tapi muncul lagi besok kalau tahapnya
+     * masih berjalan & masih H-2/lewat tenggat.
+     */
+    private function cekPeringatanTenggat(): void
+    {
+        $routePrefix = $this->actorType === 'owner' ? 'owner' : 'portal';
+
+        $tahapUrgent = Tahapan::whereHas('tanaman', fn ($q) => $q->where('id_owners', $this->owner->id))
+            ->where('status', 'berjalan')
+            ->whereNotNull('durasi_rencana')
+            ->where(fn ($q) => $q->whereNull('notif_h2_shown_at')->orWhereDate('notif_h2_shown_at', '<', now()->toDateString()))
+            ->with('tanaman')
+            ->get()
+            ->filter(fn ($t) => $t->hampir_habis);
+
+        if ($tahapUrgent->isEmpty()) {
+            return;
+        }
+
+        $labelJenis = ['semai' => 'Semai', 'peremajaan' => 'Peremajaan', 'pendewasaan' => 'Pendewasaan'];
+
+        $this->itemPeringatanTenggat = $tahapUrgent
+            ->sortBy('sisa_hari')
+            ->map(fn ($t) => [
+                'label' => $t->tanaman->nama_tanaman,
+                'subLabel' => 'Tahap '.($labelJenis[$t->jenis] ?? ucfirst($t->jenis)),
+                'sisaHari' => $t->sisa_hari,
+                'link' => route($routePrefix.'.tanaman').'?tanaman='.$t->tanaman_id,
+            ])
+            ->values()
+            ->all();
+
+        Tahapan::whereIn('id', $tahapUrgent->pluck('id'))->update(['notif_h2_shown_at' => now()->toDateString()]);
+
+        $this->showPeringatanTenggat = true;
+    }
+
+    public function tutupPeringatanTenggat(): void
+    {
+        $this->showPeringatanTenggat = false;
     }
 
     public function updatingSearch()

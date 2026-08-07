@@ -27,6 +27,7 @@
                         <tr class="text-[10px] mono tracking-[0.1em] text-slate-500 dark:text-slate-400">
                             <th scope="col" class="px-6 py-4 text-left">TANAMAN</th>
                             <th scope="col" class="px-6 py-4 text-left">TANGGAL RENCANA</th>
+                            <th scope="col" class="px-6 py-4 text-left">PROGRESS</th>
                             <th scope="col" class="px-6 py-4 text-left">STATUS</th>
                             <th scope="col" class="px-6 py-4 text-left">CATATAN</th>
                             <th scope="col" class="px-6 py-4 text-right">AKSI</th>
@@ -37,6 +38,9 @@
                         <tr class="group transition-all duration-200 dark:hover:bg-slate-800/30">
                             <td class="px-6 py-4 align-middle text-sm font-bold dark:text-white">{{ $item->tanaman->nama_tanaman }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 align-middle">{{ $item->tanggal_rencana->format('d M Y') }}</td>
+                            <td class="px-6 py-4 align-middle" style="min-width:150px">
+                                <x-owner.progress-bar :tahap="$item" fallback="Selesai" />
+                            </td>
                             <td class="px-6 py-4 align-middle">
                                 <span class="text-[10px] font-bold px-2.5 py-1 rounded-full {{ $item->status === 'selesai' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }}">{{ $item->status === 'selesai' ? 'Selesai' : 'Belum' }}</span>
                             </td>
@@ -59,9 +63,12 @@
         <div class="md:hidden divide-y divide-slate-100/70 dark:divide-slate-700/50">
             @forelse($list as $item)
             <div class="p-5 flex items-center justify-between gap-4">
-                <div>
+                <div class="flex-1 min-w-0">
                     <p class="text-sm font-bold dark:text-white">{{ $item->tanaman->nama_tanaman }}</p>
                     <p class="text-[10px] mono text-slate-500 dark:text-slate-400">{{ $item->tanggal_rencana->format('d M Y') }} • {{ $item->status === 'selesai' ? 'Selesai' : 'Belum' }}</p>
+                    @if($item->status !== 'selesai')
+                        <div class="mt-2 max-w-[180px]"><x-owner.progress-bar :tahap="$item" /></div>
+                    @endif
                 </div>
                 <div class="flex gap-2">
                     <button wire:click="openEdit({{ $item->id }})" aria-label="Edit" class="w-9 h-9 rounded-full bg-slate-100/70 dark:bg-slate-700/50 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition dark:text-slate-300">✎</button>
@@ -150,4 +157,11 @@
         </div>
     </div>
     @endif
+
+    <x-owner.modal-peringatan-tenggat
+        :show="$showPeringatanTenggat"
+        :items="$itemPeringatanTenggat"
+        close-method="tutupPeringatanTenggat"
+        title="Jadwal Semprot Hampir Habis Waktu"
+    />
 </x-dynamic-component>

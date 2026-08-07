@@ -23,6 +23,10 @@ class JadwalSemprot extends Component
     public $tanamanId_form;
     public $tanggalRencana_form, $tanggalSelesai_form, $status_form = 'belum', $catatan_form;
 
+    // Modal peringatan tenggat (H-2)
+    public $showPeringatanTenggat = false;
+    public $itemPeringatanTenggat = [];
+
     public function mount()
     {
         if ($redirect = $this->loadAuthenticatedOwner()) {
@@ -31,6 +35,49 @@ class JadwalSemprot extends Component
         if ($redirect = $this->requireRole(['owner', 'teknisi'])) {
             return $redirect;
         }
+
+        $this->cekPeringatanTenggat();
+    }
+
+    /**
+     * Sama seperti ManajemenTanaman::cekPeringatanTenggat() - dipanggil sekali tiap page
+     * load, cuma tampil 1x per hari per jadwal (lihat komentar versi Tahapan-nya untuk
+     * alasan lengkap).
+     */
+    private function cekPeringatanTenggat(): void
+    {
+        $routePrefix = $this->actorType === 'owner' ? 'owner' : 'portal';
+
+        $jadwalUrgent = Jadwal::whereHas('tanaman', fn ($q) => $q->where('id_owners', $this->owner->id))
+            ->where('status', 'belum')
+            ->where(fn ($q) => $q->whereNull('notif_h2_shown_at')->orWhereDate('notif_h2_shown_at', '<', now()->toDateString()))
+            ->with('tanaman')
+            ->get()
+            ->filter(fn ($j) => $j->hampir_habis);
+
+        if ($jadwalUrgent->isEmpty()) {
+            return;
+        }
+
+        $this->itemPeringatanTenggat = $jadwalUrgent
+            ->sortBy('sisa_hari')
+            ->map(fn ($j) => [
+                'label' => $j->tanaman->nama_tanaman,
+                'subLabel' => 'Jadwal semprot: '.$j->tanggal_rencana->format('d M Y'),
+                'sisaHari' => $j->sisa_hari,
+                'link' => route($routePrefix.'.tanaman.semprot'),
+            ])
+            ->values()
+            ->all();
+
+        Jadwal::whereIn('id', $jadwalUrgent->pluck('id'))->update(['notif_h2_shown_at' => now()->toDateString()]);
+
+        $this->showPeringatanTenggat = true;
+    }
+
+    public function tutupPeringatanTenggat(): void
+    {
+        $this->showPeringatanTenggat = false;
     }
 
     public function updatingSearch()

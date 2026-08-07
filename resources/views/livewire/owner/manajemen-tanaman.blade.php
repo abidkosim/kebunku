@@ -46,7 +46,9 @@
                             <td class="px-6 py-4 align-middle">
                                 <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">{{ $item->status }}</span>
                             </td>
-                            <td class="px-6 py-4 text-sm mono text-slate-500 dark:text-slate-400 align-middle">{{ $item->progress }}</td>
+                            <td class="px-6 py-4 align-middle" style="min-width:150px">
+                                <x-owner.progress-bar :tahap="$item->tahapans->firstWhere('status', 'berjalan')" fallback="{{ $item->progress }}" />
+                            </td>
                             <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 align-middle">{{ $item->created_at->format('d M Y') }}</td>
                             <td class="px-6 py-4 align-middle" onclick="event.stopPropagation()">
                                 <div class="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -66,11 +68,15 @@
         <div class="md:hidden divide-y divide-slate-100/70 dark:divide-slate-700/50">
             @forelse($list as $item)
             <div class="p-5 flex items-center justify-between gap-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition cursor-pointer" wire:click="viewDetail({{ $item->id }})">
-                <div>
+                <div class="flex-1 min-w-0">
                     <p class="text-sm font-bold dark:text-white">{{ $item->nama_tanaman }}</p>
                     <p class="text-[10px] mono text-slate-500 dark:text-slate-400">{{ $item->meja->kebun->nama_kebun }} • Meja {{ $item->meja->nomor }} • {{ $item->status }}</p>
+                    @php $tahapAktifMobile = $item->tahapans->firstWhere('status', 'berjalan'); @endphp
+                    @if($tahapAktifMobile && $tahapAktifMobile->progress_persen !== null)
+                        <div class="mt-2 max-w-[200px]"><x-owner.progress-bar :tahap="$tahapAktifMobile" /></div>
+                    @endif
                 </div>
-                <div class="flex gap-2" onclick="event.stopPropagation()">
+                <div class="flex gap-2 shrink-0" onclick="event.stopPropagation()">
                     <button wire:click="openEditTanaman({{ $item->id }})" aria-label="Edit" class="w-9 h-9 rounded-full bg-slate-100/70 dark:bg-slate-700/50 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition dark:text-slate-300">✎</button>
                     <button wire:click="deleteTanaman({{ $item->id }})" wire:confirm="Hapus?" aria-label="Hapus" class="w-9 h-9 rounded-full bg-slate-100/70 dark:bg-slate-700/50 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-500 dark:hover:text-red-400 transition dark:text-slate-300">✕</button>
                 </div>
@@ -166,6 +172,21 @@
                         <p class="font-bold text-slate-700 dark:text-slate-200 mt-0.5">{{ $tahap->tanggal_selesai_rencana?->format('d M Y') ?? '-' }}</p>
                     </div>
                 </div>
+                @if($tahap->status === 'berjalan' && $tahap->progress_persen !== null)
+                <div class="mt-3.5 pt-3.5 border-t border-slate-200/50 dark:border-slate-700/50">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Progress Waktu</p>
+                        <p class="text-[10px] font-bold {{ $tahap->hampir_habis ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400' }}">{{ $tahap->progress_persen }}%</p>
+                    </div>
+                    <x-owner.progress-bar :tahap="$tahap" />
+                    @if($tahap->hampir_habis)
+                        <p class="text-[11px] text-red-600 dark:text-red-400 font-semibold mt-2 flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m0 3.75h.007v.008H12v-.008zM10.29 3.86L1.82 18a1.5 1.5 0 001.3 2.25h17.76a1.5 1.5 0 001.3-2.25L13.71 3.86a1.5 1.5 0 00-2.42 0z"/></svg>
+                            {{ $tahap->sisa_hari < 0 ? 'Sudah lewat '.abs($tahap->sisa_hari).' hari dari rencana' : ($tahap->sisa_hari === 0 ? 'Target selesai hari ini' : 'Target selesai '.$tahap->sisa_hari.' hari lagi') }}
+                        </p>
+                    @endif
+                </div>
+                @endif
                 @if($tahap->status === 'selesai')
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs mt-3 pt-3 border-t border-slate-200/50 dark:border-slate-700/50">
                     <div>
@@ -361,5 +382,12 @@
         </div>
     </div>
     @endif
+
+    <x-owner.modal-peringatan-tenggat
+        :show="$showPeringatanTenggat"
+        :items="$itemPeringatanTenggat"
+        close-method="tutupPeringatanTenggat"
+        title="Tahap Pertumbuhan Hampir Habis Waktu"
+    />
 
 </x-dynamic-component>
