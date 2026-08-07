@@ -29,10 +29,10 @@ $menus = [
                 <button @click="sidebarOpen = !sidebarOpen" aria-label="Toggle sidebar" class="lg:hidden w-9 h-9 rounded-full bg-white/80 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
                     <svg class="w-4 h-4 text-slate-700 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
-                <div class="w-10 h-10 bg-gradient-to-br from-slate-900 to-slate-700 rounded-xl flex items-center justify-center text-white font-extrabold text-lg shadow-lg shadow-slate-900/20">O</div>
-                <div class="hidden sm:block">
-                    <p class="font-extrabold text-sm leading-none tracking-tight bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent">Owner Panel</p>
-                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 mono font-medium tracking-[0.15em]">{{ strtoupper($owner->nama_usaha) }}</p>
+                <div class="w-10 h-10 shrink-0 bg-gradient-to-br from-slate-900 to-slate-700 rounded-xl flex items-center justify-center text-white font-extrabold text-lg shadow-lg shadow-slate-900/20">{{ strtoupper(substr($owner->nama_usaha, 0, 1)) }}</div>
+                <div class="hidden sm:block min-w-0 max-w-[220px]">
+                    <p class="font-extrabold text-sm leading-none tracking-tight bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-400 bg-clip-text text-transparent truncate">{{ $owner->nama_usaha }}</p>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 mono font-medium tracking-[0.15em]">OWNER PANEL</p>
                 </div>
                 <x-owner.badge-langganan :owner="$owner" />
             </div>
