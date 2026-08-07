@@ -129,6 +129,18 @@ trait RequiresOwnerAuth
         };
     }
 
+    /**
+     * Dipanggil begitu dropdown notifikasi dibuka - satu feed aktivitas dipakai bersama
+     * seluruh actor bisnis ini (owner+teknisi+keuangan, lihat ActivityLog::catat()), jadi
+     * "sudah dibaca" juga disimpan di level owner (bukan per-actor) supaya siapapun yang
+     * buka dropdown ini langsung menghilangkan titik merahnya untuk semua yang login di
+     * bisnis yang sama - konsisten dengan feed yang memang digabung, bukan per-orang.
+     */
+    public function tandaiNotifikasiDibaca(): void
+    {
+        $this->owner->update(['notifikasi_dibaca_at' => now()]);
+    }
+
     public function logout()
     {
         if ($this->actorType === 'owner' && $this->owner) {

@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class Owner extends Model
 {
-    protected $fillable = ['nama','nama_usaha','username','password','alamat','foto','kunci_monitor','remember_token','mode_langganan','trial_berakhir_at','pro_berakhir_at'];
+    protected $fillable = ['nama','nama_usaha','username','password','alamat','foto','kunci_monitor','notifikasi_dibaca_at','remember_token','mode_langganan','trial_berakhir_at','pro_berakhir_at'];
 
     protected $casts = [
         'trial_berakhir_at' => 'datetime',
         'pro_berakhir_at' => 'datetime',
+        'notifikasi_dibaca_at' => 'datetime',
     ];
 
     public function users() { return $this->hasMany(User::class, 'id_owners'); }
