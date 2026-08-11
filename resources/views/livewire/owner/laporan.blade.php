@@ -83,20 +83,37 @@
             </div>
         </div>
 
-        {{-- Pembeli hutang terbesar --}}
+        {{-- Rekap pembeli: kg, status bayar, hutang --}}
+        @php
+            $statusLabelPembeli = ['lunas' => 'Lunas', 'sebagian' => 'Sebagian', 'hutang' => 'Hutang', 'menunggu_harga' => 'Menunggu Harga'];
+            $statusColorPembeli = [
+                'lunas' => 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+                'sebagian' => 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                'hutang' => 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                'menunggu_harga' => 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+            ];
+        @endphp
         <div class="glass-card rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-slate-800/20 overflow-hidden">
             <div class="p-5 border-b border-slate-200/50 dark:border-slate-700/50">
-                <h3 class="font-extrabold text-sm dark:text-white">Pembeli dengan Hutang Terbesar</h3>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Top 5 sisa hutang saat ini (bukan per periode)</p>
+                <h3 class="font-extrabold text-sm dark:text-white">Rekap Pembeli</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Kg dibeli & status bayar saat ini (bukan per periode), diurutkan dari hutang terbesar</p>
             </div>
-            <div class="divide-y divide-slate-100/70 dark:divide-slate-700/50">
-                @forelse($pembeliHutangTerbesar as $p)
+            <div class="divide-y divide-slate-100/70 dark:divide-slate-700/50 max-h-[420px] overflow-y-auto">
+                @forelse($rekapPembeli as $p)
                 <div class="p-4 flex items-center justify-between gap-3">
-                    <p class="text-sm font-bold dark:text-white">{{ $p['nama'] }}</p>
-                    <span class="text-sm font-bold text-red-600 dark:text-red-400">Rp {{ number_format($p['total_hutang'], 0, ',', '.') }}</span>
+                    <div class="min-w-0">
+                        <p class="text-sm font-bold dark:text-white flex items-center gap-2 flex-wrap">
+                            {{ $p['nama'] }}
+                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full {{ $statusColorPembeli[$p['status']] }}">{{ $statusLabelPembeli[$p['status']] }}</span>
+                        </p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ number_format($p['total_kg'], 2) }} kg • Rp {{ number_format($p['total_transaksi'], 0, ',', '.') }}</p>
+                    </div>
+                    <span class="text-sm font-bold {{ $p['total_hutang'] > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400' }} shrink-0">
+                        {{ $p['total_hutang'] > 0 ? 'Rp '.number_format($p['total_hutang'], 0, ',', '.') : 'Lunas' }}
+                    </span>
                 </div>
                 @empty
-                <div class="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Tidak ada hutang tersisa</div>
+                <div class="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada pembeli</div>
                 @endforelse
             </div>
         </div>

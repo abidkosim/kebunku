@@ -135,14 +135,20 @@ class Laporan extends Component
                 ];
             });
 
-        // Hutang adalah saldo berjalan (belum dibayar sampai sekarang), sengaja tidak difilter periode.
-        $pembeliHutangTerbesar = Pembeli::where('id_owners', $this->owner->id)
+        // Saldo berjalan per pembeli (kg, status, hutang sampai sekarang), sengaja tidak difilter periode.
+        $rekapPembeli = Pembeli::where('id_owners', $this->owner->id)
             ->with('panens')
             ->get()
-            ->map(fn ($p) => ['nama' => $p->nama, 'total_hutang' => $p->total_hutang])
-            ->filter(fn ($p) => $p['total_hutang'] > 0)
+            ->filter(fn ($p) => $p->panens->count() > 0)
+            ->map(fn ($p) => [
+                'nama' => $p->nama,
+                'total_kg' => $p->total_kg,
+                'total_transaksi' => $p->total_transaksi,
+                'total_dibayar' => $p->total_dibayar,
+                'total_hutang' => $p->total_hutang,
+                'status' => $p->status_hutang,
+            ])
             ->sortByDesc('total_hutang')
-            ->take(5)
             ->values();
 
         $rekapKeuangan = $this->keuanganQuery()
@@ -167,7 +173,7 @@ class Laporan extends Component
             'kematianPerTahap' => $kematianPerTahap,
             'rekapKebun' => $rekapKebun,
             'rekapKeuangan' => $rekapKeuangan,
-            'pembeliHutangTerbesar' => $pembeliHutangTerbesar,
+            'rekapPembeli' => $rekapPembeli,
         ];
     }
 }

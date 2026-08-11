@@ -1,5 +1,15 @@
 <x-dynamic-component :component="$actorType === 'owner' ? 'owner.shell' : 'staff.shell'" :owner="$owner" active="pembeli" :logs="$logs" :actor-type="$actorType" :actor-nama="$actorNama" :actor-foto-url="$actorFotoUrl">
 
+    @php
+        $statusLabelPembeli = ['lunas' => 'Lunas', 'sebagian' => 'Sebagian', 'hutang' => 'Hutang', 'menunggu_harga' => 'Menunggu Harga'];
+        $statusColorPembeli = [
+            'lunas' => 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+            'sebagian' => 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+            'hutang' => 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+            'menunggu_harga' => 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+        ];
+    @endphp
+
     @if(!$selected)
     {{-- ===================== LIST VIEW ===================== --}}
     <div class="glass-card rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-slate-800/20 border-slate-200/60 dark:border-slate-700/50 overflow-hidden">
@@ -31,7 +41,8 @@
                             <th scope="col" class="px-6 py-4 text-left">NAMA</th>
                             <th scope="col" class="px-6 py-4 text-left">KONTAK</th>
                             <th scope="col" class="px-6 py-4 text-left">TRANSAKSI</th>
-                            <th scope="col" class="px-6 py-4 text-left">HUTANG</th>
+                            <th scope="col" class="px-6 py-4 text-left">KG DIBELI</th>
+                            <th scope="col" class="px-6 py-4 text-left">STATUS</th>
                             <th scope="col" class="px-6 py-4 text-right">AKSI</th>
                         </tr>
                     </thead>
@@ -41,12 +52,14 @@
                             <td class="px-6 py-4 align-middle text-sm font-bold dark:text-white">{{ $item->nama }}</td>
                             <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-300 align-middle">{{ $item->kontak ?: '-' }}</td>
                             <td class="px-6 py-4 text-sm mono text-slate-500 dark:text-slate-400 align-middle">{{ $item->panens_count }}</td>
+                            <td class="px-6 py-4 text-sm mono text-slate-500 dark:text-slate-400 align-middle">{{ number_format($item->total_kg, 2) }} kg</td>
                             <td class="px-6 py-4 align-middle">
-                                @if($item->total_hutang > 0)
-                                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Rp {{ number_format($item->total_hutang, 0, ',', '.') }}</span>
-                                @else
-                                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Lunas</span>
-                                @endif
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[10px] font-bold px-2.5 py-1 rounded-full {{ $statusColorPembeli[$item->status_hutang] }}">{{ $statusLabelPembeli[$item->status_hutang] }}</span>
+                                    @if($item->total_hutang > 0)
+                                        <span class="text-[11px] font-bold text-red-600 dark:text-red-400 whitespace-nowrap">Rp {{ number_format($item->total_hutang, 0, ',', '.') }}</span>
+                                    @endif
+                                </div>
                             </td>
                             <td class="px-6 py-4 align-middle" onclick="event.stopPropagation()">
                                 <div class="flex items-center justify-end gap-2">
@@ -58,7 +71,7 @@
                             </td>
                         </tr>
                         @empty
-                        <tr><td colspan="5" class="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada pembeli. Pembeli juga otomatis dibuat lewat form Catat Panen.</td></tr>
+                        <tr><td colspan="6" class="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada pembeli. Pembeli juga otomatis dibuat lewat form Catat Panen.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -70,7 +83,13 @@
             <div class="p-5 flex items-center justify-between gap-4 cursor-pointer" wire:click="viewDetail({{ $item->id }})">
                 <div>
                     <p class="text-sm font-bold dark:text-white">{{ $item->nama }}</p>
-                    <p class="text-[10px] mono text-slate-500 dark:text-slate-400">{{ $item->panens_count }} transaksi @if($item->total_hutang > 0) • Hutang Rp {{ number_format($item->total_hutang, 0, ',', '.') }} @endif</p>
+                    <p class="text-[10px] mono text-slate-500 dark:text-slate-400">{{ $item->panens_count }} transaksi • {{ number_format($item->total_kg, 2) }} kg</p>
+                    <p class="text-[10px] font-bold mt-1 flex items-center gap-1.5">
+                        <span class="px-2 py-0.5 rounded-full {{ $statusColorPembeli[$item->status_hutang] }}">{{ $statusLabelPembeli[$item->status_hutang] }}</span>
+                        @if($item->total_hutang > 0)
+                            <span class="text-red-600 dark:text-red-400">Rp {{ number_format($item->total_hutang, 0, ',', '.') }}</span>
+                        @endif
+                    </p>
                 </div>
                 <span class="text-xs font-bold text-slate-400">&rarr;</span>
             </div>

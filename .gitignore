@@ -1,6 +1,7 @@
 *.log
 .DS_Store
 .env
+dump.rdb
 kebutuhaninstalasi-lokal.txt
 .env.backup
 .env.production
