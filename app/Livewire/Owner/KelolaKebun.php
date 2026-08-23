@@ -19,6 +19,12 @@ class KelolaKebun extends Component
     public $namaKebun_form;
     public $jumlahMeja_form = 10;
 
+    // Koordinat kebun - dasar validasi radius 20m fitur Absensi (App\Models\Kebun).
+    // Opsional: kebun tetap bisa dibuat/diedit tanpa ini, cuma Absensi untuk kebun itu
+    // terkunci sampai koordinatnya diisi.
+    public $lat_form;
+    public $lng_form;
+
     public function mount()
     {
         if ($redirect = $this->loadAuthenticatedOwner()) {
@@ -41,7 +47,7 @@ class KelolaKebun extends Component
 
     public function openCreateKebun()
     {
-        $this->reset(['namaKebun_form', 'editKebunId']);
+        $this->reset(['namaKebun_form', 'editKebunId', 'lat_form', 'lng_form']);
         $this->jumlahMeja_form = 10;
         $this->isEditModeKebun = false;
         $this->showModalKebun = true;
@@ -52,22 +58,41 @@ class KelolaKebun extends Component
         $data = $this->kebunQuery()->findOrFail($id);
         $this->editKebunId = $data->id;
         $this->namaKebun_form = $data->nama_kebun;
+        $this->lat_form = $data->lat !== null ? (float) $data->lat : null;
+        $this->lng_form = $data->lng !== null ? (float) $data->lng : null;
         $this->isEditModeKebun = true;
         $this->showModalKebun = true;
     }
 
     public function saveKebun()
     {
+        // lat/lng: kosong-dua-duanya (belum diisi) atau isi-dua-duanya (koordinat
+        // lengkap) - tidak boleh cuma salah satu, itu koordinat yang tidak lengkap
+        // dan akan salah dipakai untuk hitung jarak.
+        $rulesKoordinat = [
+            'lat_form' => 'nullable|required_with:lng_form|numeric|between:-90,90',
+            'lng_form' => 'nullable|required_with:lat_form|numeric|between:-180,180',
+        ];
+
         if ($this->isEditModeKebun) {
-            $this->validate(['namaKebun_form' => 'required']);
-            $this->kebunQuery()->findOrFail($this->editKebunId)->update(['nama_kebun' => $this->namaKebun_form]);
-            $this->catat('update', "Mengupdate nama kebun jadi '{$this->namaKebun_form}'");
+            $this->validate(['namaKebun_form' => 'required'] + $rulesKoordinat);
+            $this->kebunQuery()->findOrFail($this->editKebunId)->update([
+                'nama_kebun' => $this->namaKebun_form,
+                'lat' => $this->lat_form,
+                'lng' => $this->lng_form,
+            ]);
+            $this->catat('update', "Mengupdate data kebun '{$this->namaKebun_form}'".($this->lat_form ? ' (koordinat diperbarui)' : ''));
         } else {
             $this->validate([
                 'namaKebun_form' => 'required',
                 'jumlahMeja_form' => 'required|integer|min:1|max:100',
+            ] + $rulesKoordinat);
+            $kebun = Kebun::create([
+                'id_owners' => $this->owner->id,
+                'nama_kebun' => $this->namaKebun_form,
+                'lat' => $this->lat_form,
+                'lng' => $this->lng_form,
             ]);
-            $kebun = Kebun::create(['id_owners' => $this->owner->id, 'nama_kebun' => $this->namaKebun_form]);
             for ($i = 1; $i <= $this->jumlahMeja_form; $i++) {
                 Meja::create(['kebun_id' => $kebun->id, 'nomor' => $i]);
             }

@@ -12,6 +12,11 @@ $navTeknisi = [
     ['slug' => 'tanaman-panen', 'label' => 'Panen', 'href' => route('portal.tanaman.panen'), 'icon' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0 8v1m0-1v-1m0 4v1m0-1v-1'],
     ['slug' => 'galeri', 'label' => 'Galeri', 'href' => route('portal.galeri'), 'icon' => 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M4 8h16M4 4h16v16H4V4z'],
 ];
+/*
+ * Absensi SENGAJA tidak masuk baris nav di atas (dulu ada di sini) - dipindah jadi
+ * tombol bulat terapung supaya baris ikon utama (Beranda/Kebun/Tanaman/Semprot/
+ * Panen/Galeri) tidak makin sesak. Lihat tombol mengambang di bawah komponen ini.
+ */
 
 $navKeuangan = [
     ['slug' => 'dashboard', 'label' => 'Beranda', 'href' => route('portal.dashboard'), 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'],
@@ -111,6 +116,18 @@ $roleLabel = $role === 'keuangan' ? 'Keuangan' : 'Teknisi';
             @endforeach
         </div>
     </nav>
+
+    {{-- Tombol bulat terapung ke Absensi - hanya Teknisi (Keuangan tidak punya akses
+         fitur ini sama sekali). Ditaruh di atas bottom nav, kanan bawah, seperti
+         tombol live-chat, supaya tidak menambah baris ikon yang sudah padat. --}}
+    @if($role === 'teknisi')
+    <a href="{{ route('portal.absensi') }}" wire:navigate
+       aria-label="Absensi Kunjungan"
+       class="fixed z-40 flex items-center justify-center w-14 h-14 rounded-full btn-primary shadow-xl {{ $active === 'absensi' ? 'ring-4 ring-slate-900/20 dark:ring-white/20' : '' }}"
+       style="bottom: 5.25rem; right: 1rem;">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+    </a>
+    @endif
 
     {{-- Modalnya sendiri (tombol pemicunya ada di dropdown profil di atas). --}}
     @livewire('owner.saran-masukan-modal')

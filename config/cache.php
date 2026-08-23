@@ -154,6 +154,7 @@ return [
         \App\Models\Tandon::class,
         \App\Models\TandonBacaan::class,
         \App\Models\ActivityLog::class,
+        \App\Models\Absensi::class,
     ],
 
 ];

@@ -45,6 +45,7 @@ Route::prefix('owner')->middleware('sudah.login:owner')->group(function(){
     Route::get('/dashboard/akun', fn() => view('pages.owner-akun'))->name('owner.akun');
     Route::get('/dashboard/galeri', fn() => view('pages.owner-galeri'))->name('owner.galeri');
     Route::get('/dashboard/tandon', fn() => view('pages.owner-tandon'))->name('owner.tandon');
+    Route::get('/dashboard/absensi', fn() => view('pages.owner-absensi'))->name('owner.absensi');
 });
 
 // Portal Staff (Teknisi & Keuangan) - login sama dengan Owner (di root "/"), fokus tampilan mobile.
@@ -58,4 +59,5 @@ Route::prefix('portal')->middleware('sudah.login:staff')->group(function () {
     Route::get('/laporan', fn() => view('pages.owner-laporan'))->name('portal.laporan');
     Route::get('/akun', fn() => view('pages.owner-akun'))->name('portal.akun');
     Route::get('/galeri', fn() => view('pages.owner-galeri'))->name('portal.galeri');
+    Route::get('/absensi', fn() => view('pages.owner-absensi'))->name('portal.absensi');
 });

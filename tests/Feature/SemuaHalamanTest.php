@@ -138,6 +138,7 @@ class SemuaHalamanTest extends TestCase
             'akun' => '/owner/dashboard/akun',
             'galeri' => '/owner/dashboard/galeri',
             'tandon' => '/owner/dashboard/tandon',
+            'absensi' => '/owner/dashboard/absensi',
         ];
     }
 
@@ -151,6 +152,7 @@ class SemuaHalamanTest extends TestCase
             'panen' => '/portal/tanaman/panen',
             'akun' => '/portal/akun',
             'galeri' => '/portal/galeri',
+            'absensi' => '/portal/absensi',
         ];
     }
 
