@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Events\TandonUpdated;
 use App\Models\Tandon;
 use App\Models\TandonBacaan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -17,6 +18,13 @@ class TandonIngestService
 {
     private const JEDA_CATAT_RIWAYAT_MENIT = 5;
     private const SIMPAN_RIWAYAT_HARI = 7;
+
+    /**
+     * Berapa lama sebuah halaman monitor masih dianggap "sedang dibuka" setelah
+     * render terakhirnya. Halaman monitor melakukan render ulang tiap ada bacaan
+     * baru, jadi selama benar-benar ditonton penanda ini terus diperbarui sendiri.
+     */
+    private const DETIK_MASIH_DITONTON = 90;
 
     public function simpanBacaan(Tandon $tandon, float $ppm, float $ph, float $suhu, string $sumber, ?string $statusPompa = null): void
     {
@@ -34,11 +42,37 @@ class TandonIngestService
             Log::warning("Tandon #{$tandon->id}: gagal catat riwayat sensor ({$sumber}), simulasi/ingest tetap lanjut. ".$e->getMessage());
         }
 
+        // Broadcast hanya kalau memang ada halaman monitor yang sedang terbuka.
+        // Kalau tidak ada, tiap siaran cuma membebani Reverb + Redis tanpa satu pun
+        // penerima - dan dulu ini terjadi terus-menerus 24 jam sehari.
+        if (!self::adaYangMenonton($tandon->kebun->id_owners)) {
+            return;
+        }
+
         try {
             TandonUpdated::dispatch($tandon->kebun->id_owners);
         } catch (\Throwable $e) {
             Log::warning("Tandon #{$tandon->id}: broadcast TandonUpdated gagal ({$sumber}). ".$e->getMessage());
         }
+    }
+
+    /**
+     * Dipanggil dari render() halaman Monitor Tandon & Monitor Publik - menandai bahwa
+     * data tandon milik owner ini sedang benar-benar dilihat orang.
+     */
+    public static function tandaiSedangDitonton(int $idOwners): void
+    {
+        Cache::put(self::kunciTonton($idOwners), true, now()->addSeconds(self::DETIK_MASIH_DITONTON));
+    }
+
+    public static function adaYangMenonton(int $idOwners): bool
+    {
+        return (bool) Cache::get(self::kunciTonton($idOwners), false);
+    }
+
+    private static function kunciTonton(int $idOwners): string
+    {
+        return "tandon:ditonton:{$idOwners}";
     }
 
     /**

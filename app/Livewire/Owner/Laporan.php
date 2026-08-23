@@ -12,6 +12,7 @@ use App\Models\Pembeli;
 use App\Models\Kebun;
 use App\Models\Keuangan;
 use App\Models\ActivityLog;
+use Illuminate\Support\Facades\DB;
 
 class Laporan extends Component
 {
@@ -50,7 +51,7 @@ class Laporan extends Component
     private function panenQuery()
     {
         return $this->periode(
-            Panen::whereHas('tanaman', fn ($q) => $q->where('id_owners', $this->owner->id)),
+            Panen::query()->milikOwner($this->owner->id),
             'tanggal'
         );
     }
@@ -87,30 +88,41 @@ class Laporan extends Component
 
     private function hitungRekap(): array
     {
-        $panens = $this->panenQuery()->get();
-        $totalBerat = (float) $panens->sum(fn ($p) => (float) $p->berat_kg);
-        $totalPendapatanPanen = (float) $panens->filter(fn ($p) => $p->harga_per_kg !== null)->sum(fn ($p) => $p->total_harga);
-        $totalBelumDibayar = (float) $panens->filter(fn ($p) => $p->harga_per_kg !== null)->sum(fn ($p) => $p->sisa_hutang);
+        // Satu query agregat menggantikan "tarik semua baris panen lalu sum() di PHP".
+        $rekapPanen = Panen::rekap($this->panenQuery());
+        $totalBerat = $rekapPanen->total_berat;
+        $totalPendapatanPanen = $rekapPanen->total_harga;
+        $totalBelumDibayar = $rekapPanen->total_sisa_hutang;
         $totalSelesaiDipanen = $this->periode(
             Tanaman::where('id_owners', $this->owner->id)->whereNotNull('siklus_selesai_at'),
             'siklus_selesai_at'
         )->count();
 
-        $totalPemasukanUmum = (float) $this->keuanganQuery()->where('jenis', 'pemasukan')->sum('jumlah');
-        $totalPengeluaranUmum = (float) $this->keuanganQuery()->where('jenis', 'pengeluaran')->sum('jumlah');
+        // Dua SUM digabung jadi satu query (sebelumnya dua kali round-trip ke database).
+        $totalKeuangan = $this->keuanganQuery()->toBase()
+            ->selectRaw("
+                COALESCE(SUM(CASE WHEN jenis = 'pemasukan' THEN jumlah ELSE 0 END), 0) as pemasukan,
+                COALESCE(SUM(CASE WHEN jenis = 'pengeluaran' THEN jumlah ELSE 0 END), 0) as pengeluaran
+            ")
+            ->first();
+
+        $totalPemasukanUmum = (float) ($totalKeuangan->pemasukan ?? 0);
+        $totalPengeluaranUmum = (float) ($totalKeuangan->pengeluaran ?? 0);
         $labaRugiBersih = ($totalPendapatanPanen + $totalPemasukanUmum) - $totalPengeluaranUmum;
 
         $urutanTahap = ['semai', 'peremajaan', 'pendewasaan', 'panen'];
         $labelTahap = ['semai' => 'Semai', 'peremajaan' => 'Peremajaan', 'pendewasaan' => 'Pendewasaan', 'panen' => 'Panen'];
         $kematianPerTahap = $this->tahapanSelesaiQuery()
-            ->get()
+            ->toBase()
+            ->selectRaw('jenis, COALESCE(SUM(jumlah_awal), 0) as awal, COALESCE(SUM(jumlah_lolos), 0) as lolos')
             ->groupBy('jenis')
-            ->map(function ($rows, $jenis) use ($labelTahap) {
-                $awal = (int) $rows->sum('jumlah_awal');
-                $lolos = (int) $rows->sum('jumlah_lolos');
+            ->get()
+            ->map(function ($row) use ($labelTahap) {
+                $awal = (int) $row->awal;
+                $lolos = (int) $row->lolos;
                 return [
-                    'jenis' => $jenis,
-                    'label' => $labelTahap[$jenis] ?? ucfirst($jenis),
+                    'jenis' => $row->jenis,
+                    'label' => $labelTahap[$row->jenis] ?? ucfirst($row->jenis),
                     'awal' => $awal,
                     'lolos' => $lolos,
                     'mati' => $awal - $lolos,
@@ -120,26 +132,50 @@ class Laporan extends Component
             ->sortBy(fn ($row) => array_search($row['jenis'], $urutanTahap))
             ->values();
 
-        $rekapKebun = Kebun::where('id_owners', $this->owner->id)
-            ->with(['meja.tanaman' => fn ($q) => $q->with(['panens' => fn ($p) => $this->periode($p, 'tanggal')])])
-            ->orderBy('nama_kebun')
-            ->get()
-            ->map(function ($kebun) {
-                $tanamanList = $kebun->meja->flatMap->tanaman;
-                $panensKebun = $tanamanList->flatMap->panens;
-                return [
-                    'nama_kebun' => $kebun->nama_kebun,
-                    'jumlah_tanaman' => $tanamanList->count(),
-                    'total_berat' => (float) $panensKebun->sum(fn ($p) => (float) $p->berat_kg),
-                    'total_pendapatan' => (float) $panensKebun->filter(fn ($p) => $p->harga_per_kg !== null)->sum(fn ($p) => $p->total_harga),
-                ];
-            });
+        // Dulu: memuat SELURUH pohon kebun -> meja -> tanaman -> panens ke memori PHP,
+        // lalu flatMap+sum. Sekarang satu query JOIN + GROUP BY; yang kembali ke PHP
+        // hanya satu baris per kebun. Filter periode diletakkan di klausa ON (bukan
+        // WHERE) supaya kebun yang tidak punya panen di periode itu tetap muncul dengan
+        // nilai 0, persis seperti perilaku versi lama.
+        $rekapKebun = collect(
+            DB::table('kebun')
+                ->leftJoin('meja', 'meja.kebun_id', '=', 'kebun.id')
+                ->leftJoin('tanaman', 'tanaman.meja_id', '=', 'meja.id')
+                ->leftJoin('panens', function ($join) {
+                    $join->on('panens.tanaman_id', '=', 'tanaman.id');
+                    if ($this->dariTanggal) {
+                        $join->whereDate('panens.tanggal', '>=', $this->dariTanggal);
+                    }
+                    if ($this->sampaiTanggal) {
+                        $join->whereDate('panens.tanggal', '<=', $this->sampaiTanggal);
+                    }
+                })
+                ->where('kebun.id_owners', $this->owner->id)
+                ->groupBy('kebun.id', 'kebun.nama_kebun')
+                ->orderBy('kebun.nama_kebun')
+                ->selectRaw('
+                    kebun.nama_kebun,
+                    COUNT(DISTINCT tanaman.id) as jumlah_tanaman,
+                    COALESCE(SUM(panens.berat_kg), 0) as total_berat,
+                    COALESCE(SUM(CASE WHEN panens.harga_per_kg IS NULL THEN 0 ELSE ROUND(panens.berat_kg * panens.harga_per_kg, 2) END), 0) as total_pendapatan
+                ')
+                ->get()
+        )->map(fn ($row) => [
+            'nama_kebun' => $row->nama_kebun,
+            'jumlah_tanaman' => (int) $row->jumlah_tanaman,
+            'total_berat' => (float) $row->total_berat,
+            'total_pendapatan' => (float) $row->total_pendapatan,
+        ]);
 
         // Saldo berjalan per pembeli (kg, status, hutang sampai sekarang), sengaja tidak difilter periode.
         $rekapPembeli = Pembeli::where('id_owners', $this->owner->id)
-            ->with('panens')
+            ->denganRekap()
+            // whereHas (bukan having panens_count) - HAVING tanpa GROUP BY ditolak
+            // sebagian driver, sedangkan EXISTS di sini portabel dan bisa memakai
+            // indeks panens.pembeli_id.
+            ->whereHas('panens')
+            ->orderByDesc('total_hutang')
             ->get()
-            ->filter(fn ($p) => $p->panens->count() > 0)
             ->map(fn ($p) => [
                 'nama' => $p->nama,
                 'total_kg' => $p->total_kg,
@@ -148,19 +184,19 @@ class Laporan extends Component
                 'total_hutang' => $p->total_hutang,
                 'status' => $p->status_hutang,
             ])
-            ->sortByDesc('total_hutang')
             ->values();
 
-        $rekapKeuangan = $this->keuanganQuery()
-            ->get()
-            ->groupBy(fn ($k) => $k->jenis.'|'.$k->kategori)
-            ->map(fn ($rows) => [
-                'jenis' => $rows->first()->jenis,
-                'kategori' => $rows->first()->kategori,
-                'total' => (float) $rows->sum('jumlah'),
-            ])
-            ->sortByDesc('total')
-            ->values();
+        $rekapKeuangan = collect(
+            $this->keuanganQuery()->toBase()
+                ->selectRaw('jenis, kategori, COALESCE(SUM(jumlah), 0) as total')
+                ->groupBy('jenis', 'kategori')
+                ->orderByDesc('total')
+                ->get()
+        )->map(fn ($row) => [
+            'jenis' => $row->jenis,
+            'kategori' => $row->kategori,
+            'total' => (float) $row->total,
+        ])->values();
 
         return [
             'totalBerat' => $totalBerat,

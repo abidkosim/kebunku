@@ -115,14 +115,16 @@ class KelolaPembeli extends Component
     public function render()
     {
         $cacheKey = 'pembeli:list:page'.$this->getPage().':per'.$this->perPage.':s'.md5($this->search ?? '');
-        $list = $this->rememberOwnerCache(['pembeli'], $cacheKey, 300, fn () =>
+        // denganRekap() menghitung total kg/transaksi/dibayar/hutang lewat sub-query
+        // agregat. Sebelumnya baris ini pakai with('panens'), yang menarik SELURUH
+        // riwayat panen setiap pembeli di halaman ini ke memori hanya untuk dijumlahkan.
+        $list = $this->rememberOwnerCache(['pembeli', 'panen'], $cacheKey, 300, fn () =>
             $this->pembeliQuery()
-                ->withCount('panens')
-                ->with('panens')
+                ->denganRekap()
                 ->when($this->search, function ($q) {
                     $q->where('nama', 'like', '%'.$this->search.'%');
                 })
-                ->latest('id')
+                ->latest('pembeli.id')
                 ->paginate($this->perPage)
         );
 

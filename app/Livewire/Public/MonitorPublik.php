@@ -4,6 +4,7 @@ namespace App\Livewire\Public;
 
 use App\Models\Owner;
 use App\Models\Tandon;
+use App\Services\TandonIngestService;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -29,6 +30,10 @@ class MonitorPublik extends Component
 
     public function render()
     {
+        // Sama seperti MonitorTandon: layar ini juga "penonton" yang sah, jadi simulasi
+        // harus tetap berjalan cepat selama halaman TV/monitor ini terbuka.
+        TandonIngestService::tandaiSedangDitonton($this->owner->id);
+
         $list = Tandon::whereHas('kebun', function ($q) {
             $q->where('id_owners', $this->owner->id);
         })->with('kebun')->orderBy('nama')->get();

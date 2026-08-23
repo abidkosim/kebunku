@@ -24,7 +24,26 @@ class SimulasikanTandon implements ShouldQueue
 {
     use Queueable;
 
-    private const JEDA_DETIK = 8;
+    /**
+     * Jeda saat halaman monitor benar-benar sedang dibuka - tetap 8 detik supaya
+     * tampilannya terasa realtime seperti sebelumnya.
+     */
+    private const JEDA_DETIK_DITONTON = 8;
+
+    /**
+     * Jeda saat TIDAK ada satu pun halaman monitor yang terbuka. Rantai simulasi tetap
+     * hidup (jadi begitu halaman dibuka, angkanya langsung wajar dan tidak perlu
+     * "dinyalakan" manual), tapi 7,5x lebih jarang.
+     *
+     * Ini sumber beban terus-menerus terbesar di server: sebelumnya setiap tandon
+     * memicu query + update + siaran WebSocket tiap 8 detik, 24 jam sehari, bahkan
+     * ketika tidak ada seorang pun yang melihat layarnya. Riwayat grafik tidak
+     * terpengaruh sama sekali - baris riwayat memang cuma dicatat tiap 5 menit
+     * (lihat TandonIngestService::JEDA_CATAT_RIWAYAT_MENIT), jauh lebih jarang
+     * daripada jeda menganggur ini.
+     */
+    private const JEDA_DETIK_MENGANGGUR = 60;
+
     private const TOLERANSI_PPM = 30;
     private const TOLERANSI_PH = 0.2;
 
@@ -42,7 +61,11 @@ class SimulasikanTandon implements ShouldQueue
 
         // jadwalkan ulang dulu SEBELUM operasi apapun yang bisa gagal - supaya satu error
         // di langkah lain tidak pernah mematikan rantai simulasi permanen.
-        self::dispatch($tandon->id)->delay(now()->addSeconds(self::JEDA_DETIK));
+        $jeda = TandonIngestService::adaYangMenonton($tandon->kebun->id_owners)
+            ? self::JEDA_DETIK_DITONTON
+            : self::JEDA_DETIK_MENGANGGUR;
+
+        self::dispatch($tandon->id)->delay(now()->addSeconds($jeda));
 
         if ($tandon->status_pompa !== null) {
             // siklus auto-dosing (JalankanAutoDosing) sedang pegang tandon ini - jangan

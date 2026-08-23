@@ -6,7 +6,8 @@
     <title>Monitor Tandon</title>
     @include('partials.favicon')
     @include('partials.fonts')
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- grafik.js (Chart.js) & realtime.js (Echo) sengaja hanya di halaman ini. --}}
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/realtime.js', 'resources/js/grafik.js'])
     @livewireStyles
 </head>
 <body>

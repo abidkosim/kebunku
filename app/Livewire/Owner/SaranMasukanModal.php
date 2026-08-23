@@ -4,12 +4,18 @@ namespace App\Livewire\Owner;
 
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
 use App\Models\Saran;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 /**
- * Selalu di-embed sekali di shell owner/staff (lihat components/owner/shell.blade.php
- * & components/staff/shell.blade.php) - tombol "Saran & Masukan" di bawah sidebar,
- * bukan halaman tersendiri.
+ * Di-embed SEKALI di shell owner/staff (lihat components/owner/shell.blade.php &
+ * components/staff/shell.blade.php) - isinya cuma modalnya. Tombol pemicunya terpisah
+ * (<x-owner.tombol-saran />) supaya bisa ditaruh di beberapa tempat (sidebar desktop
+ * dan sidebar mobile) tanpa harus me-render ulang komponen Livewire-nya di tiap tempat.
+ *
+ * Sebelumnya tombol dan modal jadi satu, sehingga shell owner memuat DUA instance
+ * komponen ini per halaman - dua kali biaya mount, dua kali payload di HTML, untuk
+ * satu modal yang sama.
  */
 class SaranMasukanModal extends Component
 {
@@ -25,6 +31,7 @@ class SaranMasukanModal extends Component
         }
     }
 
+    #[On('buka-saran')]
     public function buka()
     {
         $this->showModal = true;

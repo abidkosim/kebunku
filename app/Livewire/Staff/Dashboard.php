@@ -54,30 +54,46 @@ class Dashboard extends Component
         }
 
         if ($this->actorType === 'keuangan') {
-            $keuanganBulanIni = Keuangan::where('id_owners', $this->owner->id)
-                ->whereMonth('tanggal', now()->month)->whereYear('tanggal', now()->year)
-                ->get();
+            // Rentang tanggal eksplisit (bukan whereMonth/whereYear) supaya indeks
+            // (id_owners, tanggal) benar-benar terpakai, dan semua penjumlahan
+            // dikerjakan MySQL - bukan dengan menarik seluruh baris ke memori PHP.
+            $awalBulan = now()->startOfMonth()->toDateString();
+            $akhirBulan = now()->endOfMonth()->toDateString();
 
-            $pemasukanUmum = (float) $keuanganBulanIni->where('jenis', 'pemasukan')->sum('jumlah');
-            $pengeluaranUmum = (float) $keuanganBulanIni->where('jenis', 'pengeluaran')->sum('jumlah');
+            $keuanganQuery = fn () => Keuangan::where('id_owners', $this->owner->id)
+                ->whereBetween('tanggal', [$awalBulan, $akhirBulan]);
 
-            $panens = Panen::whereHas('tanaman', fn ($q) => $q->where('id_owners', $this->owner->id))->get();
-            $panensBulanIni = $panens->filter(fn ($p) => $p->tanggal->isSameMonth(now()));
+            $totalKeuangan = $keuanganQuery()->toBase()
+                ->selectRaw("
+                    COALESCE(SUM(CASE WHEN jenis = 'pemasukan' THEN jumlah ELSE 0 END), 0) as pemasukan,
+                    COALESCE(SUM(CASE WHEN jenis = 'pengeluaran' THEN jumlah ELSE 0 END), 0) as pengeluaran
+                ")
+                ->first();
 
-            $pendapatanPanenBulanIni = (float) $panensBulanIni->filter(fn ($p) => $p->harga_per_kg !== null)->sum(fn ($p) => $p->total_harga);
+            $pemasukanUmum = (float) ($totalKeuangan->pemasukan ?? 0);
+            $pengeluaranUmum = (float) ($totalKeuangan->pengeluaran ?? 0);
+
+            $rekapSemua = Panen::rekap(Panen::query()->milikOwner($this->owner->id));
+            $rekapBulanIni = Panen::rekap(
+                Panen::query()->milikOwner($this->owner->id)
+                    ->whereBetween('tanggal', [$awalBulan, $akhirBulan])
+            );
+
+            $pendapatanPanenBulanIni = $rekapBulanIni->total_harga;
 
             $data['pemasukanUmumBulanIni'] = $pemasukanUmum;
             $data['pengeluaranUmumBulanIni'] = $pengeluaranUmum;
             $data['pendapatanPanenBulanIni'] = $pendapatanPanenBulanIni;
             $data['labaRugiBulanIni'] = ($pendapatanPanenBulanIni + $pemasukanUmum) - $pengeluaranUmum;
-            $data['totalBelumDibayar'] = (float) $panens->filter(fn ($p) => $p->harga_per_kg !== null)->sum(fn ($p) => $p->sisa_hutang);
-            $data['menungguHarga'] = $panens->filter(fn ($p) => $p->harga_per_kg === null)->count();
-            $data['rekapKategoriBulanIni'] = $keuanganBulanIni
-                ->groupBy('kategori')
-                ->map(fn ($rows) => ['jenis' => $rows->first()->jenis, 'kategori' => $rows->first()->kategori, 'total' => (float) $rows->sum('jumlah')])
-                ->sortByDesc('total')
-                ->take(4)
-                ->values();
+            $data['totalBelumDibayar'] = $rekapSemua->total_sisa_hutang;
+            $data['menungguHarga'] = $rekapSemua->jumlah_menunggu_harga;
+            $data['rekapKategoriBulanIni'] = $keuanganQuery()->toBase()
+                ->selectRaw('jenis, kategori, COALESCE(SUM(jumlah), 0) as total')
+                ->groupBy('jenis', 'kategori')
+                ->orderByDesc('total')
+                ->limit(4)
+                ->get()
+                ->map(fn ($row) => ['jenis' => $row->jenis, 'kategori' => $row->kategori, 'total' => (float) $row->total]);
         }
 
         return $data;

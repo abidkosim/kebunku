@@ -115,7 +115,7 @@ $menus = [
         <aside class="hidden lg:flex flex-col w-64 shrink-0 min-h-[calc(100vh-4rem)] glass-card border-r border-slate-200/60 dark:border-slate-700/50 p-4 gap-1 sticky top-16 self-start">
             <x-owner.sidebar-menu :menus="$menus" :active="$active" :owner="$owner" />
             <div class="mt-auto pt-2 border-t border-slate-200/50 dark:border-slate-700/50">
-                @livewire('owner.saran-masukan-modal')
+                <x-owner.tombol-saran />
             </div>
         </aside>
 
@@ -128,7 +128,7 @@ $menus = [
             </div>
             <x-owner.sidebar-menu :menus="$menus" :active="$active" :owner="$owner" />
             <div class="mt-auto pt-2 border-t border-slate-200/50 dark:border-slate-700/50">
-                @livewire('owner.saran-masukan-modal')
+                <x-owner.tombol-saran />
             </div>
         </aside>
 
@@ -137,4 +137,7 @@ $menus = [
             {{ $slot }}
         </main>
     </div>
+
+    {{-- Satu instance saja untuk seluruh halaman; dipicu kedua tombol di atas. --}}
+    @livewire('owner.saran-masukan-modal')
 </div>

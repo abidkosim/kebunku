@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class Tanaman extends Model
@@ -76,13 +77,36 @@ class Tanaman extends Model
         return $selesai > 0 ? "{$selesai} tahap selesai" : 'Belum mulai';
     }
 
-    public function getTotalBeratPanenAttribute(): float
+    /**
+     * Total panen per tanaman lewat sub-query agregat. Tanpa ini, daftar tanaman di
+     * halaman Panen memicu satu query lazy-load relasi panens untuk SETIAP baris yang
+     * ditampilkan (N+1) hanya untuk menjumlahkan beratnya.
+     */
+    public function scopeDenganRekapPanen(Builder $query): Builder
     {
+        return $query
+            ->select('tanaman.*')
+            ->addSelect([
+                'total_berat_panen' => Panen::subRekap('tanaman_id', 'tanaman.id', 'berat'),
+                'total_pendapatan_panen' => Panen::subRekap('tanaman_id', 'tanaman.id', 'harga'),
+            ]);
+    }
+
+    public function getTotalBeratPanenAttribute($value): float
+    {
+        if ($value !== null) {
+            return (float) $value;
+        }
+
         return (float) $this->panens->sum(fn ($p) => (float) $p->berat_kg);
     }
 
-    public function getTotalPendapatanPanenAttribute(): float
+    public function getTotalPendapatanPanenAttribute($value): float
     {
+        if ($value !== null) {
+            return (float) $value;
+        }
+
         return (float) $this->panens
             ->filter(fn ($p) => $p->harga_per_kg !== null)
             ->sum(fn ($p) => $p->total_harga);

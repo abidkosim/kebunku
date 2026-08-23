@@ -6,7 +6,8 @@
     <meta name="robots" content="noindex, nofollow">
     <title>Monitor Tandon</title>
     @include('partials.fonts')
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- realtime.js dibutuhkan: MonitorPublik punya listener echo TandonUpdated. --}}
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/realtime.js'])
     @livewireStyles
 </head>
 <body class="bg-slate-950">

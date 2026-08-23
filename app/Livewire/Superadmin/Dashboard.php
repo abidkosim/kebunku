@@ -7,6 +7,7 @@ use App\Models\Owner;
 use App\Models\Saran;
 use App\Models\ActivityLog;
 use App\Support\RememberMe;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Hash;
 
 class Dashboard extends Component
@@ -45,6 +46,21 @@ class Dashboard extends Component
 
         $this->nama = $this->superadmin->nama;
         $this->username = $this->superadmin->username;
+    }
+
+    /**
+     * Sama seperti panel Owner: mount() hanya jalan di page load pertama, sedangkan
+     * request Livewire berikutnya membawa identitas dari payload komponen. Tanpa
+     * pengecekan ulang di sini, komponen yang sudah ter-render tetap bisa dipakai
+     * setelah logout / sesi habis. hydrate() jalan di setiap request Livewire.
+     */
+    public function hydrate(): void
+    {
+        $idSesi = session('superadmin_id');
+
+        if (!$idSesi || (int) $idSesi !== (int) ($this->superadmin->id ?? 0)) {
+            throw new AuthorizationException('Sesi sudah berakhir, silakan login ulang.');
+        }
     }
 
     public function isReadOnly(): bool
@@ -272,7 +288,15 @@ public function deleteOwner($id)
 
     $logs = ActivityLog::latest('id')->limit(15)->get();
 
-    $sarans = Saran::with('owner')->latest('id')->get();
+    // Dibatasi 50 terbaru: tabel sarans tumbuh terus dan sebelumnya SELURUH isinya
+    // ditarik ke memori tiap kali dashboard di-render, padahal yang relevan cuma
+    // yang terbaru. Yang belum dibaca sengaja didahulukan supaya tidak pernah
+    // tertimbun oleh saran lama yang sudah ditandai.
+    $sarans = Saran::with('owner:id,nama,nama_usaha')
+        ->orderBy('dibaca')
+        ->latest('id')
+        ->limit(50)
+        ->get();
 
     return view('livewire.superadmin.dashboard', ['list' => $list, 'listOwner' => $listOwner, 'logs' => $logs, 'sarans' => $sarans]);
 }

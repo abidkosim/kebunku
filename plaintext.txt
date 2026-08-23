@@ -844,3 +844,112 @@ Owner minta semua servis backend lokal dinyalakan. Sebelum ini semua proses (MyS
 	b. KETEMU BUG DRIFT YANG SAMA KAYAK ITEM 28/29 (`REVERB_HOST` basi): `.env` masih nyimpen IP lama `192.168.1.3`, padahal IP LAN mesin ini sekarang `192.168.1.13` (dicek lewat `Get-NetIPAddress`, DHCP berubah lagi). Diperbaiki ke `192.168.1.13` SEBELUM `queue:work`/`reverb:start` dinyalakan (supaya langsung baca env yang benar dari awal proses, tidak perlu restart lagi), lalu `npm run build` dijalankan ulang supaya `VITE_REVERB_HOST` ikut ke-bake benar ke asset frontend (pelajaran item 28: env cuma kebaca pas proses START, dan asset Vite juga perlu di-build ulang tiap `REVERB_HOST` berubah).
 
 	c. Kalau IP LAN berubah lagi di sesi berikutnya (DHCP lease baru), cek dulu `REVERB_HOST` di `.env` sebelum asumsi realtime (Galeri/Tandon) rusak karena hal lain - ini sudah kejadian berulang kali (item 28, 29, dan sekarang 51).
+
+=====================================================================
+52. Evaluasi total: audit bug, alur, performa & keamanan seluruh aplikasi [SELESAI, LOKAL - 2026-08-23]
+=====================================================================
+Owner minta "evaluasi total, perbaiki bugnya, perbaiki alurnya agar lebih mudah, ringankan load akses agar tidak membebani network dan ram, debug total" dengan syarat mutlak: DATABASE DIPERTAHANKAN, data tidak boleh hilang. Seluruh app dibaca ulang dari nol (37 migration, 16 model, 21 komponen Livewire, 52 view, config, job, service, route) - bukan cuma bagian yang dilaporkan bermasalah.
+
+--- A. DATABASE: INDEKS YANG SELAMA INI TIDAK PERNAH ADA ---
+
+	a. Dicek langsung ke `information_schema` (bukan asumsi dari file migration): tabel `activity_logs` HANYA punya PRIMARY KEY - kolom `id_owners` tidak pernah diindeks. Padahal query `ActivityLog::where('id_owners',X)->latest('id')->limit(15)` jalan di SETIAP HALAMAN app ini (dropdown "Aktivitas Terbaru" ada di shell Owner & Staff), dan tabelnya bertambah tiap satu aksi CRUD. Artinya: full table scan, di setiap klik, di tabel yang tidak pernah berhenti tumbuh.
+
+	b. Temuan indeks hilang lainnya: `owners.username` & `users.username` (dipakai LOGIN - full scan tiap percobaan login), `users.id_owners`, `panens.tanggal`, `tanaman.siklus_selesai_at`, `tahapans(jenis,status)`, `keuangan.tanggal`, `jadwals.status`, `galeri`, `sarans`.
+
+	c. BUG TIPE KOLOM: `users.id_owners` ternyata VARCHAR(255) (dari migration awal `$table->string('id_owners')`), padahal isinya selalu ID numerik tabel `owners` - beda sendiri dari SEMUA tabel lain yang pakai `foreignId`. Akibatnya `where('id_owners', $owner->id)` membandingkan varchar dengan integer, MySQL harus meng-cast KOLOM-nya, dan cast di sisi kolom membuat indeks apapun TIDAK TERPAKAI. Diselaraskan jadi BIGINT UNSIGNED.
+
+	d. Dikerjakan lewat migration baru `2026_08_23_000001_add_performance_indexes.php` yang MURNI ADITIF dan IDEMPOTENT: tidak ada DROP kolom, tidak ada DELETE, tidak ada perubahan nilai. Tiap indeks dicek dulu ada/belum sebelum dibuat, jadi aman dijalankan berulang di server manapun. Konversi tipe `users.id_owners` dijaga: HANYA jalan kalau seluruh isinya terbukti numerik (dicek di PHP pakai `ctype_digit`, bukan REGEXP - supaya migration tetap jalan di SQLite yang dipakai test).
+
+	e. Diverifikasi setelah migrate di DB lokal: 14 foreign key masih utuh semua, jumlah baris tiap tabel tidak berubah (owners 1, users 3, tanaman 3, panens 6, pembeli 3, keuangan 3, tahapans 9, galeri 2, activity_logs 583, tandon_bacaans 1316). Backup mysqldump diambil SEBELUM migrate dijalankan.
+		CATATAN: MariaDB otomatis membuang indeks FK satu-kolom yang jadi mubazir (mis. `tanaman_id_owners_foreign`) begitu ada indeks komposit yang kolom pertamanya sama - ini perilaku normal & benar, constraint FK-nya sendiri tetap ada (sudah dicek lewat SHOW CREATE TABLE).
+
+--- B. RAM & JARINGAN: BERHENTI MENARIK SELURUH TABEL KE MEMORI PHP ---
+
+	a. POLA BERBAHAYA YANG TERSEBAR DI BANYAK MODUL: `->get()` seluruh baris lalu dijumlahkan di PHP pakai sum()/filter(). Ditemukan di `Owner\Dashboard`, `Staff\Dashboard`, dan `Laporan` - ketiganya menarik SELURUH riwayat panen milik owner ke memori hanya untuk menghasilkan 3-5 angka total. Biaya RAM & transfernya naik terus tiap ada transaksi baru, padahal hasil akhirnya tetap segitu-gitu saja.
+		FIX: ditambahkan `Panen::rekap()` (satu query agregat: total_berat, total_harga, total_dibayar, total_sisa_hutang, jumlah_menunggu_harga, jumlah_transaksi) dan `Panen::subRekap()` (sub-query agregat per pembeli/tanaman). Rumus total_harga dan sisa_hutang disimpan sebagai konstanta SQL tunggal di model, supaya perhitungan versi SQL dan versi PHP TIDAK MUNGKIN berbeda.
+
+	b. `Laporan::hitungRekap()` - rekap per kebun sebelumnya memuat SELURUH pohon kebun -> meja -> tanaman -> panens ke memori lalu flatMap+sum. Diganti satu query JOIN + GROUP BY. Filter periode sengaja ditaruh di klausa ON (bukan WHERE) supaya kebun tanpa panen di periode itu tetap muncul dengan nilai 0 - persis perilaku versi lama.
+
+	c. `KelolaPembeli::render()` memakai `with('panens')`: SELURUH riwayat panen SETIAP pembeli di halaman itu ditarik hanya untuk dijumlahkan. Diganti `Pembeli::denganRekap()` (sub-query agregat). Accessor total_kg/total_hutang/total_transaksi/total_dibayar dibuat memakai nilai agregat SQL kalau tersedia, dan JATUH KE PERHITUNGAN PHP LAMA kalau tidak - jadi halaman detail satu pembeli (yang memang butuh baris panennya) tetap bekerja tanpa diubah.
+
+	d. BUG N+1 di daftar Panen: kolom "total panen" memanggil `$item->total_berat_panen` yang membaca relasi panens, padahal relasi itu TIDAK ikut di-eager-load - jadi setiap baris tanaman yang tampil memicu satu query lazy-load sendiri. Diperbaiki lewat `Tanaman::denganRekapPanen()`.
+
+	e. `Superadmin\Dashboard::render()` menarik SELURUH tabel sarans tiap render (tabel yang tumbuh terus, tanpa limit). Dibatasi 50 terbaru, yang belum dibaca didahulukan.
+
+	f. whereMonth()+whereYear() diganti whereBetween rentang tanggal di Dashboard & Staff Dashboard: memanggil fungsi MONTH()/YEAR() DI ATAS KOLOM membuat MySQL menghitung per baris dan mengabaikan indeks; membandingkan kolomnya apa adanya membuat indeks (id_owners, tanggal) benar-benar terpakai.
+
+	g. HASIL UKUR (dihitung otomatis lewat DB::getQueryLog() di test, bukan estimasi) - jumlah query per halaman Owner:
+		dashboard 12->9, user 5->1, tanaman 11->7, kebun 7->3, semprot 10->6, panen 10->6,
+		pembeli 6->2, keuangan 8->4, laporan 11->7, akun 5->1, galeri 5->1, tandon 7->3.
+		Rata-rata turun sekitar 60%, DAN jumlah baris yang ditransfer dari database turun drastis karena penjumlahannya sekarang dikerjakan MySQL.
+
+--- C. QUERY DUPLIKAT: SATU IDENTITAS, DIAMBIL 4 KALI PER HALAMAN ---
+
+	a. Identitas "siapa yang login" diselesaikan berulang-ulang dalam SATU page load: sekali oleh `partials/favicon.blade.php`, sekali oleh komponen halamannya, DAN dua kali lagi oleh `SaranMasukanModal` - karena shell Owner ternyata me-render `@livewire('owner.saran-masukan-modal')` DUA KALI (sidebar desktop + sidebar mobile). Semuanya Owner::find() dengan id yang sama persis.
+		FIX 1: dibuat `App\Support\SesiAktor` - satu-satunya tempat identitas diselesaikan, didaftarkan scoped() (satu instance per request). `RequiresOwnerAuth` dan partial favicon sekarang membacanya dari situ. Urutan pengecekan (session owner -> session user -> cookie ingat saya) TIDAK diubah sama sekali.
+		FIX 2: tombol "Saran & Masukan" dipisah jadi `<x-owner.tombol-saran />` (bukan komponen Livewire, cuma memancarkan event `buka-saran`), dan komponen Livewire-nya di-render SEKALI saja per halaman. Dua tombol, satu modal.
+
+--- D. NETWORK: BUNDLE JAVASCRIPT DIPECAH ---
+
+	a. `resources/js/app.js` sebelumnya mengimpor Chart.js + SweetAlert2 + Laravel Echo + Pusher sekaligus, dan dimuat di SETIAP halaman - termasuk halaman login. Ukurannya 312 KB (97,8 KB gzip) yang harus diunduh di semua halaman, padahal Chart.js cuma dipakai 1 halaman dan Echo cuma 3 halaman.
+		FIX: dipecah jadi 3 entry - `app.js` (inti), `grafik.js` (Chart.js, hanya halaman Monitor Tandon), `realtime.js` (Echo+Pusher, hanya Monitor Tandon + Galeri + Monitor Publik). SweetAlert2 diubah jadi import() dinamis - baru diunduh saat notifikasi PERTAMA muncul, bukan saat halaman dibuka.
+		HASIL: JS per halaman biasa 97,8 KB gzip -> 1,4 KB gzip (turun sekitar 98%). Halaman lain juga berhenti membuka koneksi WebSocket ke Reverb yang selama ini menganggur tanpa satu pun listener.
+
+	b. TEMUAN TAMBAHAN (masalah yang sama persis dengan item 49c yang dulu terlewat): `livewire/superadmin/auth/login.blade.php` masih memuat SweetAlert2 dari CDN LUAR (cdn.jsdelivr.net) - request render-blocking ke pihak ketiga, padahal pustaka yang sama sudah ikut ter-bundle lokal. Tag script CDN-nya dihapus, diganti helper `window.tampilkanAlert` dari bundle sendiri.
+
+	c. `resources/js/bootstrap.js` (axios) ternyata DEAD CODE - tidak pernah diimpor dari mana pun. Dihapus bersama `echo.js` yang isinya pindah ke `realtime.js`.
+
+--- E. BEBAN 24 JAM: SIMULASI TANDON ---
+
+	a. `SimulasikanTandon` men-dispatch dirinya sendiri tiap 8 DETIK PER TANDON, SELAMANYA - tiap tick melakukan SELECT + UPDATE + cek riwayat + SIARAN WEBSOCKET, 24 jam sehari, BAHKAN KETIKA TIDAK ADA SEORANG PUN YANG MEMBUKA layar monitornya. Ini sumber beban terus-menerus terbesar di server (dan tiap siaran juga memaksa render ulang Livewire di tiap browser yang terhubung).
+		FIX: dibuat sadar-penonton. `MonitorTandon::render()` dan `MonitorPublik::render()` menandai "layar ini sedang dibuka" (penanda di cache, umur 90 detik, otomatis diperbarui selama benar-benar ditonton). Saat ada penonton, jeda tetap 8 detik seperti semula. Saat tidak ada, jeda jadi 60 detik DAN siarannya dilewati sama sekali (tidak ada penerima).
+		AMAN untuk grafik riwayat: baris riwayat memang cuma dicatat tiap 5 menit (TandonIngestService::JEDA_CATAT_RIWAYAT_MENIT) - jauh lebih jarang daripada jeda menganggur 60 detik ini, jadi kerapatan data grafik TIDAK berubah sedikit pun.
+
+--- F. SESSION PINDAH DARI MYSQL KE REDIS ---
+
+	a. SESSION_DRIVER=database berarti setiap request melakukan SELECT + UPDATE ke tabel `sessions`. Di produksi database-nya ada di HOST LAIN (153.92.15.19) - jadi dua perjalanan jaringan lintas server untuk SETIAP KLIK, hanya untuk membaca sesi. Redis jalan di mesin yang sama.
+		FIX: SESSION_DRIVER=redis + SESSION_CONNECTION=session, dengan koneksi Redis BARU khusus session di `config/database.php` yang memakai database TERSENDIRI (db 2), terpisah dari queue (db 0) dan cache (db 1) - supaya cache:clear atau pembersihan antrean tidak pernah ikut menghapus sesi login semua orang.
+		EFEK SAMPING YANG HARUS DIKETAHUI: saat driver diganti, sesi lama di tabel MySQL tidak ikut pindah, jadi semua yang sedang login akan diminta login ulang SEKALI. Yang mencentang "Ingat saya" masuk otomatis lagi. Tabel `sessions` sengaja TIDAK dihapus (isinya dibiarkan apa adanya).
+
+--- G. BUG FUNGSIONAL ---
+
+	a. BUG NYATA di modal "Catat Pembayaran" (`KelolaPanen::simpanPembayaran`): kolom "Harga per Kg" bisa diedit dan layar menghitung ulang kekurangannya secara live dari harga yang diketik, TAPI server hanya menyimpan harga baru itu kalau harga lamanya masih kosong. Jadi kalau owner MEMPERBAIKI harga transaksi yang sudah ada, angka di layar dihitung pakai harga baru sementara server tetap memakai harga lama - pembayaran ditolak "Melebihi sisa hutang" padahal nominalnya persis seperti yang ditampilkan.
+		FIX: harga yang tersimpan sekarang selalu sama dengan yang dipakai menghitung. Perubahan harga transaksi ikut dicatat di riwayat aktivitas supaya jejaknya jelas.
+
+	b. `PengaturanAkun` satu-satunya modul yang menulis ActivityLog TAPI LUPA mem-flush cache activity_log - dropdown "Aktivitas Terbaru" di halaman lain menampilkan feed lama sampai TTL habis. Diperbaiki + render()-nya disamakan pakai cache seperti modul lain.
+
+	c. `.gitignore` ternyata berisi POTONGAN PERINTAH POWERSHELL yang tidak sengaja tertulis sebagai ISI FILE (blok Out-File) dari sesi sebelumnya. Dirapikan, pola yang berguna dari blok itu dipertahankan.
+
+--- H. KEAMANAN ---
+
+	a. SESSION FIXATION: ID sesi tidak pernah diganti setelah login berhasil. ID sesi yang sudah dipegang orang lain sebelum korban login tetap berlaku sesudahnya. FIX: session()->regenerate() saat login DAN saat logout.
+
+	b. TANPA PEMBATAS PERCOBAAN LOGIN: halaman login bisa dicoba-coba tanpa henti. Selain soal tebak-password, tiap percobaan juga memaksa satu hash bcrypt (rounds=12) di server - cara termurah membebani CPU VPS. FIX: RateLimiter 5 percobaan gagal per (username+IP), kunci 60 detik.
+
+	c. OTORISASI CUMA DICEK SAAT MOUNT: mount() hanya jalan di page load PERTAMA. Request Livewire berikutnya membawa identitas dari payload komponen, bukan membaca ulang sesi - jadi komponen yang sudah ter-render tetap bisa dipakai setelah logout/sesi habis. FIX: ditambah hook hydrate() (jalan di SETIAP request Livewire) yang mencocokkan ulang sesi dengan pemilik komponen, di panel Owner/Staff maupun Superadmin.
+
+	d. ROUTE PANEL SAMA SEKALI TANPA MIDDLEWARE - pengunjung yang belum login tetap membuat seluruh halaman dibangun dulu sebelum dilempar balik oleh komponen. FIX: middleware `sudah.login` (+ varian peran owner/staff) dipasang di semua route panel. Pengecekan di dalam komponen SENGAJA dipertahankan sebagai lapis kedua.
+
+	e. `Owner` & `User` tidak punya $hidden sama sekali (hanya Superadmin yang punya) - password & remember_token ikut ter-serialize kalau modelnya pernah di-toArray()/JSON. FIX: $hidden ditambahkan di keduanya (+ kunci_monitor di Owner). Diverifikasi akses langsung $owner->password tetap jalan, jadi login tidak rusak.
+		CATATAN: cast 'password' => 'hashed' SENGAJA TIDAK dipakai - kode ini sudah memanggil Hash::make() sendiri, dan cast itu memanggil Hash::verifyConfiguration() yang bisa melempar error kalau BCRYPT_ROUNDS di server berbeda dengan rounds hash yang sudah tersimpan. Risiko tanpa manfaat.
+
+--- I. ALUR ---
+
+	a. Pengguna yang sudah login lalu membuka `/` (atau menekan Back sampai ke halaman login) tetap disuguhi form login lagi, seolah sesinya hilang. FIX: middleware `belum.login` mengantar langsung ke dashboard sesuai perannya.
+
+--- J. TEST (BARU - SEBELUMNYA TIDAK ADA SAMA SEKALI) ---
+
+	a. `tests/Feature/SemuaHalamanTest.php` - 7 test: SEMUA halaman Owner ter-render (bukan 500), semua halaman Staff untuk kedua peran, halaman terlindungi menolak pengunjung tanpa login, teknisi tidak bisa membuka halaman khusus owner, login owner+staff, monitor publik hanya bisa dibuka dengan kunci benar, DAN penjaga regresi N+1 (gagal kalau ada halaman yang menjalankan lebih dari 40 query).
+
+	b. `tests/Feature/PerbaikanTest.php` - 8 test khusus bug/celah yang diperbaiki di item ini. Masing-masing GAGAL pada kode sebelum perbaikan, jadi berfungsi sebagai penjaga supaya masalahnya tidak diam-diam kembali.
+
+	c. `phpunit.mysql.xml` - konfigurasi test terhadap MariaDB (database `kebunku_uji` yang TERPISAH, karena RefreshDatabase menghapus isinya - JANGAN PERNAH diarahkan ke database `kebunku`). Perlu karena SQL agregat yang ditulis tangan dan seluruh migration harus terbukti jalan di mesin database yang dipakai produksi, bukan cuma di SQLite. Cara pakai: `php artisan test -c phpunit.mysql.xml`.
+		PELAJARAN: dua bug SQL portabilitas memang ketangkap gara-gara test ini - GREATEST() (MySQL saja, diganti CASE WHEN) dan HAVING tanpa GROUP BY (ditolak SQLite, diganti whereHas).
+
+	d. Hasil akhir: 17 test lulus di SQLite DAN 17 lulus di MariaDB. Agregat SQL baru juga dibandingkan angka-per-angka dengan perhitungan PHP versi lama terhadap data asli - semua cocok persis.
+
+--- K. STATUS DEPLOY ---
+
+	a. SEMUA masih LOKAL. Belum di-push ke git, belum di-deploy ke VPS - menunggu konfirmasi owner (mengikuti kebiasaan proyek ini).
+
+	b. CATATAN UNTUK DEPLOY NANTI: selain git pull + composer install + npm run build + restart 3 service, WAJIB juga (1) jalankan `php artisan migrate` untuk indeks baru, dan (2) ubah .env VPS: SESSION_DRIVER=redis, SESSION_CONNECTION=session, REDIS_SESSION_DB=2. Tanpa langkah (2) session tetap lewat MySQL lintas jaringan dan manfaat terbesarnya tidak didapat.

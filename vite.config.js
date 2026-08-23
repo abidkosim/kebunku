@@ -6,7 +6,14 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            // grafik.js & realtime.js adalah entry terpisah supaya Chart.js dan
+            // Echo/Pusher tidak ikut masuk bundle inti yang dimuat setiap halaman.
+            input: [
+                'resources/css/app.css',
+                'resources/js/app.js',
+                'resources/js/realtime.js',
+                'resources/js/grafik.js',
+            ],
             refresh: true,
             fonts: [
                 bunny('Inter', {

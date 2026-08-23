@@ -232,11 +232,19 @@ class KelolaPanen extends Component
             'tambahanBayar_form' => 'required|numeric|min:0.01',
         ]);
 
-        if ($panen->harga_per_kg === null) {
-            $panen->harga_per_kg = $this->hargaPerKgBayar_form;
-        }
+        // Kolom "Harga per Kg" di modal ini memang bisa diubah, dan kekurangannya sudah
+        // dihitung ulang secara live dari harga yang diketik (updatedHargaPerKgBayarForm).
+        // Versi sebelumnya hanya menyimpan harga baru itu kalau harga lamanya masih
+        // kosong - jadi kalau owner MEMPERBAIKI harga transaksi yang sudah ada, angka
+        // yang tampil di layar dihitung pakai harga baru sementara server tetap memakai
+        // harga lama. Akibatnya pembayaran ditolak "melebihi sisa hutang" padahal
+        // nominalnya persis seperti yang ditampilkan. Sekarang harga yang tersimpan
+        // selalu sama dengan yang dipakai untuk menghitung.
+        $hargaLama = $panen->harga_per_kg === null ? null : (float) $panen->harga_per_kg;
+        $hargaBaru = (float) $this->hargaPerKgBayar_form;
+        $panen->harga_per_kg = $hargaBaru;
 
-        $totalHarga = round((float) $panen->berat_kg * (float) $panen->harga_per_kg, 2);
+        $totalHarga = round((float) $panen->berat_kg * $hargaBaru, 2);
         $sudahDibayar = (float) $panen->jumlah_dibayar;
         $tambahan = (float) $this->tambahanBayar_form;
 
@@ -251,6 +259,12 @@ class KelolaPanen extends Component
         $sisa = $totalHarga - $panen->jumlah_dibayar;
         $keterangan = "Mencatat pembayaran panen tanaman '{$panen->tanaman->nama_tanaman}' dari '{$panen->pembeli->nama}': Rp".number_format($tambahan, 0, ',', '.')
             .($sisa > 0 ? ', sisa hutang Rp'.number_format($sisa, 0, ',', '.') : ', lunas');
+
+        // Perubahan harga transaksi dicatat terpisah supaya jejaknya jelas di riwayat.
+        if ($hargaLama !== null && abs($hargaLama - $hargaBaru) > 0.001) {
+            $keterangan .= ' (harga/kg diubah dari Rp'.number_format($hargaLama, 0, ',', '.')
+                .' jadi Rp'.number_format($hargaBaru, 0, ',', '.').')';
+        }
         $this->catat('update', $keterangan);
         $this->forgetOwnerCache(['panen', 'pembeli', 'activity_log']);
 
@@ -308,13 +322,19 @@ class KelolaPanen extends Component
     public function render()
     {
         $cacheKey = 'panen:tanaman-siap:page'.$this->getPage().':per'.$this->perPage.':s'.md5($this->search ?? '');
-        $list = $this->rememberOwnerCache(['tanaman'], $cacheKey, 300, fn () =>
+
+        // denganRekapPanen() menyediakan kolom total_berat_panen langsung dari SQL.
+        // Tanpa itu, kolom "total panen" di tabel memicu satu query lazy-load relasi
+        // panens untuk SETIAP baris tanaman yang tampil (N+1). Tag 'panen' ikut dipasang
+        // karena isi daftar ini sekarang ikut berubah saat ada transaksi panen baru.
+        $list = $this->rememberOwnerCache(['tanaman', 'panen'], $cacheKey, 300, fn () =>
             $this->tanamanQuery()
+                ->denganRekapPanen()
                 ->with(['tahapans', 'meja.kebun'])
                 ->when($this->search, function ($q) {
                     $q->where('nama_tanaman', 'like', '%'.$this->search.'%');
                 })
-                ->latest('id')
+                ->latest('tanaman.id')
                 ->paginate($this->perPage)
         );
 

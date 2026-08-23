@@ -6,7 +6,8 @@
     <title>Galeri</title>
     @include('partials.favicon')
     @include('partials.fonts')
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- realtime.js dibutuhkan: KelolaGaleri punya listener echo GaleriUpdated. --}}
+    @vite(['resources/css/app.css', 'resources/js/app.js', 'resources/js/realtime.js'])
     @livewireStyles
 </head>
 <body>

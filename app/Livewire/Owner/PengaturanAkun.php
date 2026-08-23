@@ -5,6 +5,7 @@ namespace App\Livewire\Owner;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
+use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\User;
 use App\Models\ActivityLog;
 use Illuminate\Support\Facades\Hash;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 
 class PengaturanAkun extends Component
 {
-    use RequiresOwnerAuth, WithFileUploads;
+    use RequiresOwnerAuth, WithFileUploads, CachesOwnerData;
 
     public $nama_form;
     public $namaUsaha_form;
@@ -103,16 +104,22 @@ class PengaturanAkun extends Component
         $this->passwordKonfirmasi_form = null;
 
         ActivityLog::catat($this->actorType, $this->actorId, $this->actorNama, 'update', 'Profil', 'Memperbarui profil sendiri', $this->owner->id);
+        // Tanpa ini, dropdown "Aktivitas Terbaru" di halaman lain masih menampilkan feed
+        // lama sampai TTL cache-nya habis - satu-satunya modul yang lupa mem-flush.
+        // Tag 'users' ikut dibuang karena nama/foto akun yang baru saja diubah juga
+        // tampil di daftar Manajemen User.
+        $this->forgetOwnerCache(['activity_log', 'users']);
 
         $this->dispatch('alert-success', message: 'Profil berhasil diperbarui');
     }
 
     public function render()
     {
-        $logs = ActivityLog::where('id_owners', $this->owner->id)
-            ->latest('id')
-            ->limit(15)
-            ->get();
+        // Disamakan dengan modul lain: feed notifikasi yang identik ini di-cache dengan
+        // tag & TTL yang sama, bukan query mentah tiap render.
+        $logs = $this->rememberOwnerCache(['activity_log'], 'activity_log:recent', 120, fn () =>
+            ActivityLog::where('id_owners', $this->owner->id)->latest('id')->limit(15)->get()
+        );
 
         return view('livewire.owner.pengaturan-akun', ['logs' => $logs]);
     }

@@ -8,5 +8,5 @@ class Superadmin extends Model
 {
     protected $table = 'superadmins';
     protected $fillable = ['nama','username','password','akses','remember_token'];
-    protected $hidden = ['password'];
+    protected $hidden = ['password', 'remember_token'];
 }

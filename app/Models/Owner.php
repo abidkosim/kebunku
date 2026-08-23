@@ -8,6 +8,10 @@ class Owner extends Model
 {
     protected $fillable = ['nama','nama_usaha','username','password','alamat','foto','kunci_monitor','notifikasi_dibaca_at','remember_token','mode_langganan','trial_berakhir_at','pro_berakhir_at'];
 
+    // Jangan pernah ikut ter-serialize ke array/JSON (payload Livewire, response API,
+    // dd/log) - kolom ini rahasia dan tidak pernah dibutuhkan di sisi tampilan.
+    protected $hidden = ['password', 'remember_token', 'kunci_monitor'];
+
     protected $casts = [
         'trial_berakhir_at' => 'datetime',
         'pro_berakhir_at' => 'datetime',

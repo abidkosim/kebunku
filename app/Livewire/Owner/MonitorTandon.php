@@ -12,6 +12,7 @@ use App\Models\Kebun;
 use App\Models\Tandon;
 use App\Models\TandonBacaan;
 use App\Jobs\SimulasikanTandon;
+use App\Services\TandonIngestService;
 use Illuminate\Support\Str;
 
 class MonitorTandon extends Component
@@ -232,6 +233,12 @@ class MonitorTandon extends Component
 
     public function render()
     {
+        // Menandai bahwa layar monitor milik owner ini sedang benar-benar dibuka, supaya
+        // SimulasikanTandon memakai jeda cepat (8 detik) dan siaran realtime-nya dikirim.
+        // Saat tidak ada yang membuka, simulasi otomatis melambat sendiri - lihat
+        // App\Jobs\SimulasikanTandon.
+        TandonIngestService::tandaiSedangDitonton($this->owner->id);
+
         $list = $this->tandonQuery()
             ->with('kebun')
             ->when($this->search, function ($q) {

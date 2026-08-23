@@ -1,10 +1,25 @@
 <?php
-// test deploy
+
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Auth;
 
-Route::get('/', fn() => view('pages.owner-login'))->name('owner.login');
+/*
+|--------------------------------------------------------------------------
+| Route panel
+|--------------------------------------------------------------------------
+| Semua route panel dijaga middleware 'sudah.login' (lihat bootstrap/app.php).
+| Sebelumnya tidak ada middleware sama sekali - pengunjung yang belum login tetap
+| membuat seluruh halaman dibangun dulu sebelum akhirnya dilempar balik oleh komponen.
+|
+| Pembatasan peran yang lebih rinci (mis. hanya 'owner') tetap dikerjakan di dalam
+| komponen lewat requireRole(), karena beberapa halaman dipakai bersama oleh owner dan
+| staf dengan aturan yang berbeda-beda per halaman.
+*/
 
+Route::middleware('belum.login')->group(function () {
+    Route::get('/', fn() => view('pages.owner-login'))->name('owner.login');
+});
+
+// Monitor publik: sengaja tanpa login, aksesnya lewat kunci acak di URL.
 Route::get('/monitor/{kunci}', fn($kunci) => view('pages.monitor-publik', compact('kunci')))->name('monitor.publik');
 
 Route::prefix('superadmin')->group(function(){
@@ -16,7 +31,7 @@ Route::prefix('superadmin')->group(function(){
     Route::get('/dashboard', fn() => view('pages.superadmin-dashboard'))->name('superadmin.dashboard');
 });
 
-Route::prefix('owner')->group(function(){
+Route::prefix('owner')->middleware('sudah.login:owner')->group(function(){
     Route::get('/login', fn() => redirect('/'));
     Route::get('/dashboard', fn() => view('pages.owner-dashboard'))->name('owner.dashboard');
     Route::get('/dashboard/user', fn() => view('pages.owner-user'))->name('owner.user');
@@ -33,7 +48,7 @@ Route::prefix('owner')->group(function(){
 });
 
 // Portal Staff (Teknisi & Keuangan) - login sama dengan Owner (di root "/"), fokus tampilan mobile.
-Route::prefix('portal')->group(function () {
+Route::prefix('portal')->middleware('sudah.login:staff')->group(function () {
     Route::get('/dashboard', fn() => view('pages.staff-dashboard'))->name('portal.dashboard');
     Route::get('/tanaman', fn() => view('pages.owner-tanaman'))->name('portal.tanaman');
     Route::get('/tanaman/kebun', fn() => view('pages.owner-kebun'))->name('portal.tanaman.kebun');

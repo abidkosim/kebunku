@@ -60,20 +60,24 @@
         </div>
     </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+{{--
+    SweetAlert2 diambil dari bundle aplikasi sendiri (window.tampilkanAlert), BUKAN dari
+    CDN luar. Versi sebelumnya memuat <script src="cdn.jsdelivr.net/..."> di sini padahal
+    pustaka yang sama sudah ikut ter-bundle - artinya satu permintaan ke server pihak
+    ketiga yang memblokir render, plus pustaka yang sama diunduh dua kali.
+--}}
     <script>
         document.addEventListener('livewire:init', () => {
             Livewire.on('login-success', (event) => {
-                const nama = event.nama;
-                Swal.fire({
+                window.tampilkanAlert({
                     title: 'Login Berhasil!',
-                    text: 'Selamat datang, ' + nama,
+                    text: 'Selamat datang, ' + event.nama,
                     icon: 'success',
                     confirmButtonColor: '#0f172a',
                     confirmButtonText: 'Lanjut ke Dashboard'
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        window.location.href = "/superadmin/dashboard"; // ganti tujuan kamu
+                        window.location.href = "/superadmin/dashboard";
                     }
                 });
             });

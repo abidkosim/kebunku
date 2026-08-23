@@ -49,41 +49,61 @@ class Dashboard extends Component
         $totalTanamanAktif = Tanaman::where('id_owners', $this->owner->id)->whereNull('siklus_selesai_at')->count();
         $totalPembeli = Pembeli::where('id_owners', $this->owner->id)->count();
 
-        $panens = Panen::whereHas('tanaman', fn ($q) => $q->where('id_owners', $this->owner->id))->get();
-        $totalBelumDibayar = (float) $panens->filter(fn ($p) => $p->harga_per_kg !== null)->sum(fn ($p) => $p->sisa_hutang);
+        // Semua total di bawah dijumlahkan oleh MySQL. Versi sebelumnya menarik SELURUH
+        // baris panen milik owner ke memori PHP hanya untuk di-sum() - biaya RAM dan
+        // transfernya naik terus tiap ada transaksi baru, padahal hasilnya cuma 3 angka.
+        $rekapSemua = Panen::rekap(Panen::query()->milikOwner($this->owner->id));
+        $totalBelumDibayar = $rekapSemua->total_sisa_hutang;
 
-        $panensBulanIni = $panens->filter(fn ($p) => $p->tanggal->isSameMonth(now()));
-        $totalBeratPanenBulanIni = (float) $panensBulanIni->sum(fn ($p) => (float) $p->berat_kg);
-        $pendapatanPanenBulanIni = (float) $panensBulanIni->filter(fn ($p) => $p->harga_per_kg !== null)->sum(fn ($p) => $p->total_harga);
+        $rekapBulanIni = Panen::rekap(
+            Panen::query()->milikOwner($this->owner->id)
+                ->whereBetween('tanggal', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
+        );
+        $totalBeratPanenBulanIni = $rekapBulanIni->total_berat;
+        $pendapatanPanenBulanIni = $rekapBulanIni->total_harga;
 
-        $pemasukanUmumBulanIni = (float) Keuangan::where('id_owners', $this->owner->id)
-            ->where('jenis', 'pemasukan')
-            ->whereMonth('tanggal', now()->month)->whereYear('tanggal', now()->year)
-            ->sum('jumlah');
-        $pengeluaranUmumBulanIni = (float) Keuangan::where('id_owners', $this->owner->id)
-            ->where('jenis', 'pengeluaran')
-            ->whereMonth('tanggal', now()->month)->whereYear('tanggal', now()->year)
-            ->sum('jumlah');
+        // whereBetween dipakai menggantikan whereMonth+whereYear: memfilter kolom apa
+        // adanya membuat indeks (id_owners, tanggal) terpakai, sedangkan MONTH(tanggal)
+        // memaksa MySQL menghitung fungsi tiap baris sehingga indeksnya diabaikan.
+        $awalBulan = now()->startOfMonth()->toDateString();
+        $akhirBulan = now()->endOfMonth()->toDateString();
+
+        $keuanganBulanIni = Keuangan::where('id_owners', $this->owner->id)
+            ->whereBetween('tanggal', [$awalBulan, $akhirBulan])
+            ->toBase()
+            ->selectRaw("
+                COALESCE(SUM(CASE WHEN jenis = 'pemasukan' THEN jumlah ELSE 0 END), 0) as pemasukan,
+                COALESCE(SUM(CASE WHEN jenis = 'pengeluaran' THEN jumlah ELSE 0 END), 0) as pengeluaran
+            ")
+            ->first();
+
+        $pemasukanUmumBulanIni = (float) ($keuanganBulanIni->pemasukan ?? 0);
+        $pengeluaranUmumBulanIni = (float) ($keuanganBulanIni->pengeluaran ?? 0);
         $labaRugiBulanIni = ($pendapatanPanenBulanIni + $pemasukanUmumBulanIni) - $pengeluaranUmumBulanIni;
 
         $urutanTahap = ['semai', 'peremajaan', 'pendewasaan', 'panen'];
         $labelTahap = ['semai' => 'Semai', 'peremajaan' => 'Peremajaan', 'pendewasaan' => 'Pendewasaan', 'panen' => 'Panen'];
+        // GROUP BY dikerjakan MySQL - yang kembali ke PHP cuma 1 baris per jenis tahap
+        // (maksimal 4), bukan seluruh baris tahapan yang selesai bulan ini.
         $kematianPerTahapBulanIni = Tahapan::whereHas('tanaman', fn ($q) => $q->where('id_owners', $this->owner->id))
             ->whereNotNull('jumlah_lolos')
-            ->whereMonth('tanggal_selesai_aktual', now()->month)->whereYear('tanggal_selesai_aktual', now()->year)
-            ->get()
+            ->whereBetween('tanggal_selesai_aktual', [$awalBulan, $akhirBulan])
+            ->toBase()
+            ->selectRaw('jenis, COALESCE(SUM(jumlah_awal), 0) as awal, COALESCE(SUM(jumlah_lolos), 0) as lolos')
             ->groupBy('jenis')
-            ->map(function ($rows, $jenis) use ($labelTahap) {
-                $awal = (int) $rows->sum('jumlah_awal');
-                $lolos = (int) $rows->sum('jumlah_lolos');
+            ->get()
+            ->map(function ($row) use ($labelTahap) {
+                $awal = (int) $row->awal;
+                $lolos = (int) $row->lolos;
                 return [
-                    'label' => $labelTahap[$jenis] ?? ucfirst($jenis),
+                    'jenis' => $row->jenis,
+                    'label' => $labelTahap[$row->jenis] ?? ucfirst($row->jenis),
                     'awal' => $awal,
                     'lolos' => $lolos,
                     'persen_selamat' => $awal > 0 ? round($lolos / $awal * 100, 1) : null,
                 ];
             })
-            ->sortBy(fn ($row, $jenis) => array_search($jenis, $urutanTahap))
+            ->sortBy(fn ($row) => array_search($row['jenis'], $urutanTahap))
             ->values();
 
         return [

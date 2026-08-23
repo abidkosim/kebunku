@@ -2,9 +2,10 @@
 
 namespace App\Livewire\Owner\Concerns;
 
-use App\Models\Owner;
 use App\Models\User;
 use App\Support\RememberMe;
+use App\Support\SesiAktor;
+use Illuminate\Auth\Access\AuthorizationException;
 
 /**
  * Auth resolver dipakai lintas panel Owner & Staff (teknisi/keuangan).
@@ -19,6 +20,13 @@ trait RequiresOwnerAuth
     public $actorNama;
     public $actorFotoUrl;
 
+    /**
+     * Resolusi identitas dialihkan ke SesiAktor (scoped per request), jadi walau satu
+     * halaman memuat beberapa komponen yang semuanya butuh identitas ini, query-nya
+     * cuma jalan sekali. Perilaku yang dilihat pengguna tidak berubah sama sekali:
+     * urutan pengecekan (session owner -> session user -> cookie ingat saya) persis
+     * seperti sebelumnya.
+     */
     protected function loadAuthenticatedOwner()
     {
         // pesan yang di-flash dari redirect sebelumnya (mis. requireAksesPenuh()) - tampilkan
@@ -27,70 +35,50 @@ trait RequiresOwnerAuth
             $this->dispatch('alert-error', message: $pesan);
         }
 
-        if (session()->has('owner_id')) {
-            $this->owner = Owner::find(session('owner_id'));
+        $aktor = app(SesiAktor::class);
 
-            if (!$this->owner) {
-                session()->forget(['owner_id', 'owner_nama']);
-                return redirect('/');
+        if (!$aktor->terautentikasi()) {
+            if ($aktor->sesiBasi()) {
+                // Sesi menunjuk akun yang sudah dihapus - bersihkan supaya tidak
+                // terus-menerus dicoba di request berikutnya.
+                session()->forget(['owner_id', 'owner_nama', 'user_id', 'user_nama', 'user_role']);
             }
 
-            $this->actorType = 'owner';
-            $this->actorId = $this->owner->id;
-            $this->actorNama = $this->owner->nama;
-            $this->actorFotoUrl = $this->owner->foto_url;
+            return redirect('/');
+        }
+
+        $this->owner = $aktor->owner();
+        $this->actorType = $aktor->tipe();
+        $this->actorId = $aktor->id();
+        $this->actorNama = $aktor->nama();
+        $this->actorFotoUrl = $aktor->fotoUrl();
+
+        return null;
+    }
+
+    /**
+     * mount() hanya jalan di page load PERTAMA. Tanpa pengecekan ulang di sini, sebuah
+     * komponen yang sudah ter-render tetap bisa dipakai lewat request Livewire berikutnya
+     * walaupun sesinya sudah berakhir atau sudah logout - karena identitasnya ikut
+     * dibawa di payload komponen, bukan dibaca ulang dari sesi. hydrate() jalan di SETIAP
+     * request Livewire, jadi di sinilah sesi dicocokkan lagi dengan pemilik komponen.
+     */
+    public function hydrate(): void
+    {
+        $aktor = app(SesiAktor::class);
+
+        $masihSah = $aktor->terautentikasi()
+            && $aktor->tipe() === $this->actorType
+            && (int) $aktor->id() === (int) $this->actorId
+            && (int) $aktor->owner()->id === (int) ($this->owner->id ?? 0);
+
+        if ($masihSah) {
             return;
         }
 
-        if (session()->has('user_id')) {
-            $user = User::find(session('user_id'));
-
-            if (!$user) {
-                session()->forget(['user_id', 'user_nama', 'user_role']);
-                return redirect('/');
-            }
-
-            $this->owner = Owner::find($user->id_owners);
-
-            if (!$this->owner) {
-                session()->forget(['user_id', 'user_nama', 'user_role']);
-                return redirect('/');
-            }
-
-            $this->actorType = $user->role; // 'teknisi' | 'keuangan'
-            $this->actorId = $user->id;
-            $this->actorNama = $user->nama;
-            $this->actorFotoUrl = $user->foto_url;
-            return;
-        }
-
-        // belum ada session - coba auto-login lewat cookie "ingat saya"
-        if ($owner = RememberMe::cariDariCookie('remember_owner', Owner::class)) {
-            session(['owner_id' => $owner->id, 'owner_nama' => $owner->nama]);
-            $this->owner = $owner;
-            $this->actorType = 'owner';
-            $this->actorId = $owner->id;
-            $this->actorNama = $owner->nama;
-            $this->actorFotoUrl = $owner->foto_url;
-            return;
-        }
-
-        if ($user = RememberMe::cariDariCookie('remember_user', User::class)) {
-            $this->owner = Owner::find($user->id_owners);
-
-            if (!$this->owner) {
-                return redirect('/');
-            }
-
-            session(['user_id' => $user->id, 'user_nama' => $user->nama, 'user_role' => $user->role]);
-            $this->actorType = $user->role;
-            $this->actorId = $user->id;
-            $this->actorNama = $user->nama;
-            $this->actorFotoUrl = $user->foto_url;
-            return;
-        }
-
-        return redirect('/');
+        // Hentikan request di sini juga (bukan cuma menjadwalkan redirect) supaya method
+        // yang diminta browser tidak sempat dijalankan atas nama sesi yang sudah mati.
+        throw new AuthorizationException('Sesi sudah berakhir, silakan login ulang.');
     }
 
     /**
@@ -150,6 +138,10 @@ trait RequiresOwnerAuth
         }
 
         session()->forget(['owner_id', 'owner_nama', 'user_id', 'user_nama', 'user_role']);
+        // ID sesi diganti supaya sesi lama benar-benar mati, bukan cuma dikosongkan isinya.
+        session()->regenerate();
+        app(SesiAktor::class)->reset();
+
         return $this->redirect('/', navigate: true);
     }
 }
