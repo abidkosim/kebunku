@@ -948,8 +948,22 @@ Owner minta "evaluasi total, perbaiki bugnya, perbaiki alurnya agar lebih mudah,
 
 	d. Hasil akhir: 17 test lulus di SQLite DAN 17 lulus di MariaDB. Agregat SQL baru juga dibandingkan angka-per-angka dengan perhitungan PHP versi lama terhadap data asli - semua cocok persis.
 
---- K. STATUS DEPLOY ---
+--- K. STATUS DEPLOY [SUDAH DI-DEPLOY KE PRODUKSI - 2026-08-23] ---
 
-	a. SEMUA masih LOKAL. Belum di-push ke git, belum di-deploy ke VPS - menunggu konfirmasi owner (mengikuti kebiasaan proyek ini).
+	a. Owner konfirmasi "lanjutkan". Commit `90adfee` di-push ke origin main, lalu di-deploy ke VPS produksi.
 
-	b. CATATAN UNTUK DEPLOY NANTI: selain git pull + composer install + npm run build + restart 3 service, WAJIB juga (1) jalankan `php artisan migrate` untuk indeks baru, dan (2) ubah .env VPS: SESSION_DRIVER=redis, SESSION_CONNECTION=session, REDIS_SESSION_DB=2. Tanpa langkah (2) session tetap lewat MySQL lintas jaringan dan manfaat terbesarnya tidak didapat.
+	b. URUTAN YANG DIJALANKAN: (1) backup database produksi via mysqldump ke `~/backup-kebunku/kebunku-sebelum-audit-20260823-150737.sql.gz` PLUS cadangan .env - DILAKUKAN SEBELUM apa pun disentuh, divalidasi isinya (23 CREATE TABLE + baris "Dump completed", bukan file kosong); (2) `git pull --ff-only` (bersih, fast-forward ccc5e4d..90adfee); (3) `composer install --no-dev --optimize-autoloader`; (4) `view:clear` lalu `npm run build` (npm ci dilewati karena package.json tidak berubah); (5) `php artisan migrate --force`; (6) .env diubah ke SESSION_DRIVER=redis + SESSION_CONNECTION=session + REDIS_SESSION_DB=2; (7) config/route/view/event cache dibangun ulang; (8) izin berkas; (9) restart php8.3-fpm + kebunku-queue + kebunku-reverb.
+
+	c. VERIFIKASI MIGRATE DI PRODUKSI: jumlah baris SELURUH 16 tabel dibandingkan sebelum vs sesudah - IDENTIK SEMUA (owners 3, users 3, tanaman 14, panens 15, pembeli 6, keuangan 12, tahapans 22, jadwals 1, galeri 4, activity_logs 10937, tandon_bacaans 1, tandons 1, kebun 4, meja 16, sarans 0, superadmins 2). 14 foreign key utuh. `users.id_owners` sukses jadi bigint(20) unsigned dan ketiga user masih nyambung ke owner-nya.
+
+	d. BUKTI INDEKS BENAR-BENAR DIPAKAI (EXPLAIN di database produksi, bukan asumsi):
+		- Query notifikasi tiap halaman: `key=activity_logs_id_owners_id_index`, `Extra=Using where` - TANPA "Using filesort", artinya ORDER BY-nya dilayani indeks. Sebelumnya: full table scan 10.937 baris + filesort, di setiap klik.
+		- Query login: `type=ref | key=owners_username_index | rows=1`. Sebelumnya full scan.
+
+	e. VERIFIKASI HTTP di KEDUA domain (pelajaran item 49f - agrotech.my.id & cumabisa.online dicek terpisah, tidak diasumsikan sama): halaman login 200 dan cuma memuat `app-DXi8g9T8.js` (2 KB) + rolldown-runtime - Chart.js/Echo/SweetAlert2 TIDAK ikut terunduh; `/owner/dashboard` tanpa login dijawab 302 oleh middleware (tidak lagi membangun seluruh halaman dulu); tidak ada CDN eksternal.
+
+	f. KESEHATAN SETELAH DEPLOY: 0 baris ERROR/CRITICAL di laravel.log, 0 error php-fpm, queue worker & reverb start bersih, 5 service aktif. Redis terbagi rapi: db0 (queue) 0 key, db1 (cache) 33 key, db2 (session) 7 key, total memori 1,5 MB.
+
+	g. TEMUAN SAAT VERIFIKASI - LOG DIDOMINASI SAMPAH SIMULASI: dari 10.937 baris `activity_logs`, sebanyak **10.719 (98%)** adalah `sistem` / `Monitor Tandon` alias catatan auto-dosing yang ditulis simulasi 24 jam sehari sejak 2026-07-30. Aktivitas manusia sebenarnya cuma ~218 baris. Jadi tabel yang bikin setiap halaman lambat itu 98% isinya bukan data yang pernah dibaca siapa pun.
+		Sudah sangat berkurang dengan perbaikan sadar-penonton di poin E (saat tidak ada yang membuka layar monitor, siklus dosing jalan 7,5x lebih jarang), TAPI belum nol.
+		**BELUM DIHAPUS - SENGAJA MENUNGGU KEPUTUSAN OWNER**, karena syarat mutlak permintaan ini adalah "data tidak boleh hilang". Dua opsi kalau nanti mau: (1) hapus log `actor_type='sistem'` yang lebih tua dari N bulan, atau (2) berhenti menulis ActivityLog untuk auto-dosing mode simulasi sama sekali (log dosing simulasi tidak punya nilai audit - itu angka acak, bukan kejadian nyata). Opsi 2 lebih tepat sasaran dan tidak menghapus apa pun.
