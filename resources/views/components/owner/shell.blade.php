@@ -10,7 +10,7 @@ $menus = [
         ['slug' => 'tanaman-panen', 'label' => 'Panen', 'href' => route('owner.tanaman.panen')],
     ]],
     ['slug' => 'pembeli', 'label' => 'Pembeli', 'href' => route('owner.pembeli'), 'icon' => 'M2.25 8.25h19.5M2.25 8.25v10.5a1.5 1.5 0 001.5 1.5h16.5a1.5 1.5 0 001.5-1.5V8.25M2.25 8.25l1.5-4.5h16.5l1.5 4.5m-6 4.5a2.25 2.25 0 11-4.5 0'],
-    ['slug' => 'absensi', 'label' => 'Absensi Kunjungan', 'href' => route('owner.absensi'), 'icon' => 'M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z'],
+    ['slug' => 'absensi', 'label' => 'Absensi Karyawan', 'href' => route('owner.absensi'), 'icon' => 'M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z'],
     ['slug' => 'tandon', 'label' => 'Monitor Tandon', 'href' => route('owner.tandon'), 'icon' => 'M12 21c-3.87 0-7-2.5-7-6.5C5 10 12 3 12 3s7 7 7 11.5c0 4-3.13 6.5-7 6.5z'],
     ['slug' => 'keuangan', 'label' => 'Keuangan', 'href' => route('owner.keuangan'), 'icon' => 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v1m0 8v1m0-1v-1m0 4v1m0-1v-1M4.5 19.5h15A1.5 1.5 0 0021 18V6a1.5 1.5 0 00-1.5-1.5h-15A1.5 1.5 0 003 6v12a1.5 1.5 0 001.5 1.5z'],
     ['slug' => 'laporan', 'label' => 'Laporan', 'href' => route('owner.laporan'), 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],

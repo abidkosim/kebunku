@@ -4,7 +4,7 @@
         <div>
             <h3 class="font-extrabold text-lg flex items-center gap-2 dark:text-white">
                 <svg class="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
-                Absensi Kunjungan
+                Absensi Karyawan
             </h3>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 @if($actorType === 'teknisi')
@@ -173,6 +173,25 @@
     {{-- MODAL CATAT KUNJUNGAN --}}
     <div x-data="{
             uploading: false, progress: 0,
+            uploadTimeoutId: null, uploadMacet: false,
+
+            // Jaring pengaman: kalau upload tidak menunjukkan progress baru sama sekali
+            // selama 45 detik (koneksi sangat lambat/putus di lapangan, atau server
+            // menolak request sebelum sempat kirim event yang jelas ke browser), status
+            // 'uploading' dipaksa berhenti dan pesan jelas ditampilkan - supaya tombol
+            // Simpan tidak terkunci selamanya tanpa penjelasan. Timer di-reset setiap
+            // ada progress BARU, jadi upload yang genuinely lambat (bukan macet) tetap
+            // diberi waktu, bukan keburu dianggap gagal.
+            aturJaringPengamanUpload() {
+                clearTimeout(this.uploadTimeoutId);
+                this.uploadTimeoutId = setTimeout(() => {
+                    if (this.uploading) {
+                        this.uploading = false;
+                        this.uploadMacet = true;
+                    }
+                }, 45000);
+            },
+
             lokasiStatus: 'mencari', lokasiAkurasi: null,
             kebunList: @js($kebunKoordinat),
             kebunTerdekat: null, jarakMeter: null,
@@ -225,11 +244,11 @@
             }
          }"
          x-init="ambilLokasi()"
-         x-on:livewire-upload-start.window="uploading = true; progress = 0"
-         x-on:livewire-upload-progress.window="progress = $event.detail.progress"
-         x-on:livewire-upload-finish.window="uploading = false; progress = 100"
-         x-on:livewire-upload-error.window="uploading = false"
-         x-on:livewire-upload-cancel.window="uploading = false"
+         x-on:livewire-upload-start.window="uploading = true; progress = 0; uploadMacet = false; aturJaringPengamanUpload()"
+         x-on:livewire-upload-progress.window="progress = $event.detail.progress; aturJaringPengamanUpload()"
+         x-on:livewire-upload-finish.window="uploading = false; progress = 100; clearTimeout(uploadTimeoutId)"
+         x-on:livewire-upload-error.window="uploading = false; uploadMacet = true; clearTimeout(uploadTimeoutId)"
+         x-on:livewire-upload-cancel.window="uploading = false; clearTimeout(uploadTimeoutId)"
          class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
         <div wire:click="$set('showModal', false)" class="modal-backdrop absolute inset-0"></div>
         <div class="modal-content relative w-full sm:max-w-sm bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl p-6 sm:p-7 shadow-2xl border border-white/50 dark:border-slate-700/50 max-h-[90vh] overflow-y-auto">
@@ -281,6 +300,9 @@
                             <div class="h-full bg-slate-900 dark:bg-emerald-500 transition-all duration-150" :style="`width: ${progress}%`"></div>
                         </div>
                     </div>
+                    <p x-show="uploadMacet" class="mt-1.5 text-xs text-red-500" style="display:none;">
+                        Upload gagal atau koneksi terlalu lambat. Coba pilih ulang fotonya, atau pakai foto dengan ukuran lebih kecil.
+                    </p>
                     @error('foto_upload') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
                 </div>
                 @if($foto_upload)

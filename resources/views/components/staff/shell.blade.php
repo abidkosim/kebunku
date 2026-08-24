@@ -122,7 +122,7 @@ $roleLabel = $role === 'keuangan' ? 'Keuangan' : 'Teknisi';
          tombol live-chat, supaya tidak menambah baris ikon yang sudah padat. --}}
     @if($role === 'teknisi')
     <a href="{{ route('portal.absensi') }}" wire:navigate
-       aria-label="Absensi Kunjungan"
+       aria-label="Absensi Karyawan"
        class="fixed z-40 flex items-center justify-center w-14 h-14 rounded-full btn-primary shadow-xl {{ $active === 'absensi' ? 'ring-4 ring-slate-900/20 dark:ring-white/20' : '' }}"
        style="bottom: 5.25rem; right: 1rem;">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
