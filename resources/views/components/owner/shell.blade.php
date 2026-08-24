@@ -141,4 +141,7 @@ $menus = [
 
     {{-- Satu instance saja untuk seluruh halaman; dipicu kedua tombol di atas. --}}
     @livewire('owner.saran-masukan-modal')
+
+    {{-- Tombol bantuan live chat AI, muncul di semua halaman Owner. --}}
+    @livewire('App\Livewire\HelpChat')
 </div>

@@ -131,4 +131,7 @@ $roleLabel = $role === 'keuangan' ? 'Keuangan' : 'Teknisi';
 
     {{-- Modalnya sendiri (tombol pemicunya ada di dropdown profil di atas). --}}
     @livewire('owner.saran-masukan-modal')
+
+    {{-- Tombol bantuan live chat AI, muncul di semua halaman Staff. --}}
+    @livewire('App\Livewire\HelpChat')
 </div>
