@@ -66,12 +66,21 @@ class Panen extends Model
         $totalHarga = self::SQL_TOTAL_HARGA;
         $sisaHutang = self::SQL_SISA_HUTANG;
 
+        // kg_menunggu_harga/kg_lunas/kg_belum_lunas ditambahkan untuk kartu ringkasan
+        // Pembeli (item 60) - pecahan berat_kg per status, bukan cuma pecahan rupiah/
+        // jumlah transaksi yang sudah ada di atas. "Belum lunas" mencakup status
+        // 'hutang' MAUPUN 'sebagian' (siapa pun yang masih ada sisa tagihan > 0),
+        // dihitung dari ekspresi SQL_SISA_HUTANG yang sama supaya rumusnya konsisten
+        // dengan status_pembayaran per baris (getStatusPembayaranAttribute()).
         $baris = $query->toBase()->selectRaw("
             COALESCE(SUM(berat_kg), 0) as total_berat,
             COALESCE(SUM(CASE WHEN harga_per_kg IS NULL THEN 0 ELSE {$totalHarga} END), 0) as total_harga,
             COALESCE(SUM(CASE WHEN harga_per_kg IS NULL THEN 0 ELSE jumlah_dibayar END), 0) as total_dibayar,
             COALESCE(SUM(CASE WHEN harga_per_kg IS NULL THEN 0 ELSE ({$sisaHutang}) END), 0) as total_sisa_hutang,
             COALESCE(SUM(CASE WHEN harga_per_kg IS NULL THEN 1 ELSE 0 END), 0) as jumlah_menunggu_harga,
+            COALESCE(SUM(CASE WHEN harga_per_kg IS NULL THEN berat_kg ELSE 0 END), 0) as kg_menunggu_harga,
+            COALESCE(SUM(CASE WHEN harga_per_kg IS NOT NULL AND ({$sisaHutang}) > 0 THEN berat_kg ELSE 0 END), 0) as kg_belum_lunas,
+            COALESCE(SUM(CASE WHEN harga_per_kg IS NOT NULL AND ({$sisaHutang}) <= 0 THEN berat_kg ELSE 0 END), 0) as kg_lunas,
             COUNT(*) as jumlah_transaksi
         ")->first();
 
@@ -81,6 +90,9 @@ class Panen extends Model
             'total_dibayar' => (float) ($baris->total_dibayar ?? 0),
             'total_sisa_hutang' => (float) ($baris->total_sisa_hutang ?? 0),
             'jumlah_menunggu_harga' => (int) ($baris->jumlah_menunggu_harga ?? 0),
+            'kg_menunggu_harga' => (float) ($baris->kg_menunggu_harga ?? 0),
+            'kg_belum_lunas' => (float) ($baris->kg_belum_lunas ?? 0),
+            'kg_lunas' => (float) ($baris->kg_lunas ?? 0),
             'jumlah_transaksi' => (int) ($baris->jumlah_transaksi ?? 0),
         ];
     }

@@ -12,6 +12,57 @@
 
     @if(!$selected)
     {{-- ===================== LIST VIEW ===================== --}}
+
+    {{-- Kartu ringkasan (item 60) - gambaran menyeluruh untuk periode terpilih di
+         bawah, TIDAK ikut search/status supaya selalu jadi angka pembanding yang stabil
+         (lihat catatan di KelolaPembeli::render()). --}}
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+        <div class="glass-card rounded-2xl p-4">
+            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Total Pembeli</p>
+            <p class="text-xl font-extrabold text-slate-800 dark:text-white mt-1">{{ $ringkasan['total_pembeli'] }}</p>
+        </div>
+        <div class="glass-card rounded-2xl p-4">
+            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Total KG Dibeli</p>
+            <p class="text-xl font-extrabold text-slate-800 dark:text-white mt-1">{{ number_format($ringkasan['total_kg'], 1) }}</p>
+        </div>
+        <div class="glass-card rounded-2xl p-4">
+            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">KG Menunggu Harga</p>
+            <p class="text-xl font-extrabold {{ $ringkasan['kg_menunggu_harga'] > 0 ? 'text-slate-600 dark:text-slate-300' : 'text-slate-800 dark:text-white' }} mt-1">{{ number_format($ringkasan['kg_menunggu_harga'], 1) }}</p>
+        </div>
+        <div class="glass-card rounded-2xl p-4">
+            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">KG Belum Lunas</p>
+            <p class="text-xl font-extrabold {{ $ringkasan['kg_belum_lunas'] > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-white' }} mt-1">{{ number_format($ringkasan['kg_belum_lunas'], 1) }}</p>
+        </div>
+        <div class="glass-card rounded-2xl p-4 col-span-2 lg:col-span-1">
+            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Total Hutang</p>
+            <p class="text-xl font-extrabold {{ $ringkasan['total_hutang'] > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-white' }} mt-1">Rp {{ number_format($ringkasan['total_hutang'], 0, ',', '.') }}</p>
+        </div>
+    </div>
+
+    {{-- Filter periode transaksi (tanggal panen) + status hutang --}}
+    <div class="glass-card rounded-2xl p-4 mb-4 flex flex-col lg:flex-row lg:items-center gap-3">
+        <div class="flex items-center gap-2 flex-1">
+            <input type="date" wire:model.live="dariTanggal" class="input-fancy px-3 py-2 rounded-xl text-xs outline-none w-full">
+            <span class="text-xs text-slate-400">s/d</span>
+            <input type="date" wire:model.live="sampaiTanggal" class="input-fancy px-3 py-2 rounded-xl text-xs outline-none w-full">
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            <button wire:click="setPeriode('bulan-ini')" class="text-xs font-bold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition whitespace-nowrap">Bulan Ini</button>
+            <button wire:click="setPeriode('tahun-ini')" class="text-xs font-bold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition whitespace-nowrap">Tahun Ini</button>
+            <button wire:click="setPeriode('semua')" class="text-xs font-bold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition whitespace-nowrap">Semua</button>
+        </div>
+        <select wire:model.live="filterStatus" class="input-fancy px-4 py-2.5 rounded-full text-xs outline-none">
+            <option value="">Semua Status</option>
+            <option value="lunas">Lunas</option>
+            <option value="sebagian">Sebagian</option>
+            <option value="hutang">Hutang</option>
+            <option value="menunggu_harga">Menunggu Harga</option>
+        </select>
+        @if($search || $filterStatus || $dariTanggal || $sampaiTanggal)
+            <button wire:click="resetFilter" class="shrink-0 text-xs font-bold px-4 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition whitespace-nowrap">Reset Filter</button>
+        @endif
+    </div>
+
     <div class="glass-card rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-slate-800/20 border-slate-200/60 dark:border-slate-700/50 overflow-hidden">
         <div class="p-5 lg:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200/50 dark:border-slate-700/50">
             <div>
@@ -71,7 +122,7 @@
                             </td>
                         </tr>
                         @empty
-                        <tr><td colspan="6" class="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada pembeli. Pembeli juga otomatis dibuat lewat form Catat Panen.</td></tr>
+                        <tr><td colspan="6" class="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-500">{{ $search || $filterStatus || $dariTanggal || $sampaiTanggal ? 'Tidak ada pembeli yang cocok dengan filter ini.' : 'Belum ada pembeli. Pembeli juga otomatis dibuat lewat form Catat Panen.' }}</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -94,7 +145,7 @@
                 <span class="text-xs font-bold text-slate-400">&rarr;</span>
             </div>
             @empty
-            <div class="p-10 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada pembeli</div>
+            <div class="p-10 text-center text-sm text-slate-400 dark:text-slate-500">{{ $search || $filterStatus || $dariTanggal || $sampaiTanggal ? 'Tidak ada pembeli yang cocok dengan filter ini.' : 'Belum ada pembeli' }}</div>
             @endforelse
         </div>
 

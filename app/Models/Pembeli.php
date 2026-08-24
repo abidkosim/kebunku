@@ -25,17 +25,27 @@ class Pembeli extends Model
      * lewat sub-query agregat di SQL. Sebelumnya daftar ini pakai with('panens'), yang
      * berarti SELURUH baris panen milik SETIAP pembeli ikut ditarik ke memori hanya
      * untuk dijumlahkan - berat di RAM dan makin lambat tiap ada transaksi baru.
+     *
+     * $dariTanggal/$sampaiTanggal OPSIONAL (item 60, filter periode di halaman Kelola
+     * Pembeli) - membatasi tiap sub-query ke transaksi dalam rentang tanggal panen
+     * tertentu. Default null/null (tidak difilter) supaya caller lama seperti
+     * Laporan::render() (rekap saldo berjalan pembeli, SENGAJA tidak difilter periode
+     * di sana) tetap berperilaku sama persis tanpa perlu diubah.
      */
-    public function scopeDenganRekap(Builder $query): Builder
+    public function scopeDenganRekap(Builder $query, ?string $dariTanggal = null, ?string $sampaiTanggal = null): Builder
     {
+        $batasi = fn ($sub) => $sub
+            ->when($dariTanggal, fn ($q) => $q->whereDate('tanggal', '>=', $dariTanggal))
+            ->when($sampaiTanggal, fn ($q) => $q->whereDate('tanggal', '<=', $sampaiTanggal));
+
         return $query
             ->select('pembeli.*')
-            ->withCount('panens')
+            ->withCount(['panens' => $batasi])
             ->addSelect([
-                'total_kg' => Panen::subRekap('pembeli_id', 'pembeli.id', 'berat'),
-                'total_transaksi' => Panen::subRekap('pembeli_id', 'pembeli.id', 'harga'),
-                'total_dibayar' => Panen::subRekap('pembeli_id', 'pembeli.id', 'dibayar'),
-                'total_hutang' => Panen::subRekap('pembeli_id', 'pembeli.id', 'hutang'),
+                'total_kg' => $batasi(Panen::subRekap('pembeli_id', 'pembeli.id', 'berat')),
+                'total_transaksi' => $batasi(Panen::subRekap('pembeli_id', 'pembeli.id', 'harga')),
+                'total_dibayar' => $batasi(Panen::subRekap('pembeli_id', 'pembeli.id', 'dibayar')),
+                'total_hutang' => $batasi(Panen::subRekap('pembeli_id', 'pembeli.id', 'hutang')),
             ]);
     }
 

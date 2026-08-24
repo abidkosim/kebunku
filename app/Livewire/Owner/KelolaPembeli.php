@@ -7,6 +7,7 @@ use Livewire\WithPagination;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
 use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\Pembeli;
+use App\Models\Panen;
 use App\Models\ActivityLog;
 
 class KelolaPembeli extends Component
@@ -15,6 +16,15 @@ class KelolaPembeli extends Component
 
     public $search = '';
     public $perPage = 10;
+
+    // Filter periode (berdasarkan tanggal PANEN, bukan tanggal pembeli dibuat - pembeli
+    // sendiri tidak punya tanggal) + status hutang. Default KOSONG/"Semua" (BUKAN
+    // "Bulan Ini" seperti modul Absensi) - hutang bukan sesuatu yang relevan cuma
+    // sebulan, seorang pembeli yang berhutang dari 3 bulan lalu tetap harus kelihatan
+    // di kartu ringkasan supaya Owner tidak salah kira semua sudah lunas.
+    public $dariTanggal = null;
+    public $sampaiTanggal = null;
+    public $filterStatus = '';
 
     public $selectedPembeliId = null;
 
@@ -33,6 +43,38 @@ class KelolaPembeli extends Component
         }
     }
 
+    public function setPeriode(string $preset)
+    {
+        [$this->dariTanggal, $this->sampaiTanggal] = match ($preset) {
+            'bulan-ini' => [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()],
+            'tahun-ini' => [now()->startOfYear()->toDateString(), now()->endOfYear()->toDateString()],
+            'semua' => [null, null],
+            default => [$this->dariTanggal, $this->sampaiTanggal],
+        };
+        $this->resetPage();
+    }
+
+    public function updatedFilterStatus()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedDariTanggal()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedSampaiTanggal()
+    {
+        $this->resetPage();
+    }
+
+    public function resetFilter(): void
+    {
+        $this->reset(['search', 'filterStatus']);
+        $this->setPeriode('semua');
+    }
+
     private function catat(string $aksi, string $keterangan): void
     {
         ActivityLog::catat($this->actorType, $this->actorId, $this->actorNama, $aksi, 'Pembeli', $keterangan, $this->owner->id);
@@ -41,6 +83,30 @@ class KelolaPembeli extends Component
     private function pembeliQuery()
     {
         return Pembeli::where('id_owners', $this->owner->id);
+    }
+
+    /**
+     * ID pembeli yang cocok dengan $filterStatus (dalam periode dariTanggal/sampaiTanggal
+     * yang sama seperti daftar). status_hutang adalah accessor PHP di atas kolom hasil
+     * SUB-QUERY (bukan aggregate langsung di query luar), jadi TIDAK BISA disaring pakai
+     * HAVING - lihat catatan di Laporan::render(): "HAVING tanpa GROUP BY ditolak
+     * sebagian driver". Solusinya: tarik id+agregat SAJA (tanpa pagination) lewat query
+     * terpisah yang ringan, saring statusnya di PHP, baru dipakai sebagai whereIn() di
+     * query utama yang di-paginate - jadi pagination tetap benar dan portabel lintas
+     * driver (SQLite untuk test, MariaDB di produksi).
+     */
+    private function pembeliIdUntukStatus(): ?array
+    {
+        if (!$this->filterStatus) {
+            return null;
+        }
+
+        return $this->pembeliQuery()
+            ->denganRekap($this->dariTanggal, $this->sampaiTanggal)
+            ->get()
+            ->filter(fn ($p) => $p->status_hutang === $this->filterStatus)
+            ->pluck('id')
+            ->all();
     }
 
     public function viewDetail($id)
@@ -114,19 +180,50 @@ class KelolaPembeli extends Component
 
     public function render()
     {
-        $cacheKey = 'pembeli:list:page'.$this->getPage().':per'.$this->perPage.':s'.md5($this->search ?? '');
+        $periodeSig = md5($this->dariTanggal.'|'.$this->sampaiTanggal);
+
+        $cacheKey = 'pembeli:list:page'.$this->getPage().':per'.$this->perPage
+            .':f'.md5($this->search.'|'.$this->filterStatus.'|'.$periodeSig);
         // denganRekap() menghitung total kg/transaksi/dibayar/hutang lewat sub-query
         // agregat. Sebelumnya baris ini pakai with('panens'), yang menarik SELURUH
         // riwayat panen setiap pembeli di halaman ini ke memori hanya untuk dijumlahkan.
-        $list = $this->rememberOwnerCache(['pembeli', 'panen'], $cacheKey, 300, fn () =>
-            $this->pembeliQuery()
-                ->denganRekap()
+        // pembeliIdUntukStatus() SENGAJA dipanggil DI DALAM closure ini (bukan di luar
+        // sebelum cache lookup) - supaya query tambahannya cuma jalan saat cache MISS,
+        // bukan tiap render meski hasil $list-nya sendiri sudah tersimpan di cache.
+        $list = $this->rememberOwnerCache(['pembeli', 'panen'], $cacheKey, 300, function () {
+            $filterIdStatus = $this->pembeliIdUntukStatus();
+
+            return $this->pembeliQuery()
+                ->denganRekap($this->dariTanggal, $this->sampaiTanggal)
                 ->when($this->search, function ($q) {
                     $q->where('nama', 'like', '%'.$this->search.'%');
                 })
+                ->when($filterIdStatus !== null, fn ($q) => $q->whereIn('pembeli.id', $filterIdStatus))
                 ->latest('pembeli.id')
-                ->paginate($this->perPage)
-        );
+                ->paginate($this->perPage);
+        });
+
+        // Kartu ringkasan di atas daftar (total pembeli, total kg, kg menunggu harga,
+        // kg belum lunas, total hutang Rp) - SENGAJA cuma ikut filter periode, TIDAK
+        // ikut search/filterStatus, supaya kartu ini selalu jadi gambaran menyeluruh
+        // untuk periode terpilih (pola sama seperti $rekapTeknisi di KelolaAbsensi -
+        // lihat catatan di sana). Panen::rekap() dipakai apa adanya (sudah teruji dari
+        // Dashboard/Laporan), cuma ditambah filter tanggal & id_owners lewat milikOwner().
+        $ringkasan = $this->rememberOwnerCache(['pembeli', 'panen'], "pembeli:ringkasan:p{$periodeSig}", 300, function () {
+            $rekap = Panen::rekap(
+                Panen::query()->milikOwner($this->owner->id)
+                    ->when($this->dariTanggal, fn ($q) => $q->whereDate('tanggal', '>=', $this->dariTanggal))
+                    ->when($this->sampaiTanggal, fn ($q) => $q->whereDate('tanggal', '<=', $this->sampaiTanggal))
+            );
+
+            return [
+                'total_pembeli' => Pembeli::where('id_owners', $this->owner->id)->count(),
+                'total_kg' => $rekap->total_berat,
+                'kg_menunggu_harga' => $rekap->kg_menunggu_harga,
+                'kg_belum_lunas' => $rekap->kg_belum_lunas,
+                'total_hutang' => $rekap->total_sisa_hutang,
+            ];
+        });
 
         $selected = $this->selectedPembeliId
             ? $this->rememberOwnerCache(['pembeli', 'panen'], "pembeli:detail:{$this->selectedPembeliId}", 300, fn () =>
@@ -140,6 +237,7 @@ class KelolaPembeli extends Component
 
         return view('livewire.owner.kelola-pembeli', [
             'list' => $list,
+            'ringkasan' => $ringkasan,
             'selected' => $selected,
             'logs' => $logs,
         ]);
