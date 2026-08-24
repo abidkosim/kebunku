@@ -299,4 +299,152 @@ class AbsensiTest extends TestCase
         $this->assertStringContainsString('107.609810', $log->lokasi_maps_url);
         $this->assertStringStartsWith('https://www.google.com/maps', $log->lokasi_maps_url);
     }
+
+    // ---------- Filter, pencarian, rekap per karyawan (banyak Teknisi) ----------
+
+    private User $teknisiKedua;
+
+    private function buatDuaTeknisiDenganKunjungan(): void
+    {
+        $this->teknisiKedua = User::create([
+            'id_owners' => $this->owner->id, 'nama' => 'Teknisi Kedua', 'username' => 'teknisikedua',
+            'password' => Hash::make('rahasia123'), 'alamat' => 'Jalan Uji', 'role' => 'teknisi',
+        ]);
+
+        $kebunLain = Kebun::create([
+            'id_owners' => $this->owner->id, 'nama_kebun' => 'Kebun Lain', 'lat' => -7.0, 'lng' => 108.0,
+        ]);
+
+        // Teknisi Uji: 2 kunjungan ke Kebun Uji.
+        Absensi::create([
+            'id_owners' => $this->owner->id, 'id_kebun' => $this->kebun->id, 'actor_type' => 'teknisi',
+            'actor_id' => $this->teknisi->id, 'actor_nama' => 'Teknisi Uji', 'foto' => 'absensi/a.jpg',
+            'lokasi_lat' => self::LAT_KEBUN, 'lokasi_lng' => self::LNG_KEBUN, 'kegiatan' => 'Semprot hama',
+        ]);
+        Absensi::create([
+            'id_owners' => $this->owner->id, 'id_kebun' => $this->kebun->id, 'actor_type' => 'teknisi',
+            'actor_id' => $this->teknisi->id, 'actor_nama' => 'Teknisi Uji', 'foto' => 'absensi/b.jpg',
+            'lokasi_lat' => self::LAT_KEBUN, 'lokasi_lng' => self::LNG_KEBUN, 'kegiatan' => 'Cek tandon',
+        ]);
+
+        // Teknisi Kedua: 1 kunjungan ke Kebun Lain. Kegiatan sengaja BUKAN kata tunggal
+        // "Panen" - itu juga muncul di sidebar navigasi (menu Kelola Tanaman > Panen),
+        // jadi assertDontSee('Panen') akan salah gagal walau filter sudah benar.
+        Absensi::create([
+            'id_owners' => $this->owner->id, 'id_kebun' => $kebunLain->id, 'actor_type' => 'teknisi',
+            'actor_id' => $this->teknisiKedua->id, 'actor_nama' => 'Teknisi Kedua', 'foto' => 'absensi/c.jpg',
+            'lokasi_lat' => -7.0, 'lokasi_lng' => 108.0, 'kegiatan' => 'Panen raya cabai',
+        ]);
+    }
+
+    public function test_filter_pencarian_kegiatan(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['owner_id' => $this->owner->id]);
+
+        // NB: assertSee/assertDontSee sengaja tidak pernah pakai kata tunggal "Panen" -
+        // kata itu juga ada di menu sidebar (Kelola Tanaman > Panen) yang selalu
+        // dirender di setiap halaman, jadi assertDontSee('Panen') akan selalu gagal
+        // dan assertSee('Panen') akan selalu trivially benar terlepas dari filter.
+        Livewire::test(KelolaAbsensi::class)
+            ->set('search', 'tandon')
+            ->assertSee('Cek tandon')
+            ->assertDontSee('Semprot hama')
+            ->assertDontSee('Panen raya cabai');
+    }
+
+    public function test_filter_per_teknisi(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['owner_id' => $this->owner->id]);
+
+        Livewire::test(KelolaAbsensi::class)
+            ->set('filterTeknisiId', $this->teknisiKedua->id)
+            ->assertSee('Panen raya cabai')
+            ->assertDontSee('Semprot hama')
+            ->assertDontSee('Cek tandon');
+    }
+
+    public function test_filter_per_kebun(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $kebunLain = Kebun::where('nama_kebun', 'Kebun Lain')->firstOrFail();
+        $this->withSession(['owner_id' => $this->owner->id]);
+
+        Livewire::test(KelolaAbsensi::class)
+            ->set('filterKebunId', $kebunLain->id)
+            ->assertSee('Panen raya cabai')
+            ->assertDontSee('Semprot hama');
+    }
+
+    public function test_klik_kartu_rekap_toggle_filter_teknisi(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['owner_id' => $this->owner->id]);
+
+        $test = Livewire::test(KelolaAbsensi::class)
+            ->call('filterKeTeknisi', $this->teknisi->id)
+            ->assertSet('filterTeknisiId', $this->teknisi->id);
+
+        // Klik kartu yang sama lagi -> filter dilepas (toggle), bukan tetap terkunci.
+        $test->call('filterKeTeknisi', $this->teknisi->id)
+            ->assertSet('filterTeknisiId', '');
+    }
+
+    public function test_rekap_per_teknisi_menghitung_benar(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['owner_id' => $this->owner->id]);
+
+        Livewire::test(KelolaAbsensi::class)
+            ->call('setPeriode', 'semua')
+            ->assertSeeInOrder(['Teknisi Uji', '2']) // Teknisi Uji (2 kunjungan) tampil sebelum Teknisi Kedua (1) - urut terbanyak
+            ->assertSee('Teknisi Kedua')
+            ->assertSee('1');
+    }
+
+    public function test_reset_filter_mengembalikan_ke_kondisi_awal(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['owner_id' => $this->owner->id]);
+
+        Livewire::test(KelolaAbsensi::class)
+            ->set('search', 'tandon')
+            ->set('filterTeknisiId', $this->teknisiKedua->id)
+            ->set('filterKebunId', $this->kebun->id)
+            ->call('resetFilter')
+            ->assertSet('search', '')
+            ->assertSet('filterTeknisiId', '')
+            ->assertSet('filterKebunId', '')
+            ->assertSee('Semprot hama')
+            ->assertSee('Cek tandon')
+            ->assertSee('Panen raya cabai');
+    }
+
+    public function test_filter_periode_di_luar_rentang_tidak_muncul(): void
+    {
+        $this->withSession(['owner_id' => $this->owner->id]);
+
+        // 'created_at' TIDAK ada di $fillable Absensi (sengaja - lihat model), jadi
+        // menyisipkannya lewat create() diam-diam diabaikan dan Eloquent tetap
+        // mengisi now(). Untuk backdate di test, isi property-nya langsung lalu
+        // matikan auto-timestamp untuk SAVE ini saja.
+        $absensiLama = Absensi::create([
+            'id_owners' => $this->owner->id, 'id_kebun' => $this->kebun->id, 'actor_type' => 'teknisi',
+            'actor_id' => $this->teknisi->id, 'actor_nama' => 'Teknisi Uji', 'foto' => 'absensi/lama.jpg',
+            'lokasi_lat' => self::LAT_KEBUN, 'lokasi_lng' => self::LNG_KEBUN, 'kegiatan' => 'Kunjungan tahun lalu',
+        ]);
+        $absensiLama->timestamps = false;
+        $absensiLama->created_at = now()->subYear();
+        $absensiLama->save();
+
+        // Default mount() = periode Bulan Ini, jadi kunjungan setahun lalu tidak boleh muncul.
+        Livewire::test(KelolaAbsensi::class)
+            ->assertDontSee('Kunjungan tahun lalu');
+
+        // Pindah ke "Semua" -> baru kelihatan.
+        Livewire::test(KelolaAbsensi::class)
+            ->call('setPeriode', 'semua')
+            ->assertSee('Kunjungan tahun lalu');
+    }
 }

@@ -22,6 +22,61 @@
         @endif
     </div>
 
+    {{-- Filter periode --}}
+    <div class="glass-card rounded-2xl p-4 mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="flex items-center gap-2 flex-1">
+            <input type="date" wire:model.live="dariTanggal" class="input-fancy px-3 py-2 rounded-xl text-xs outline-none w-full">
+            <span class="text-xs text-slate-400">s/d</span>
+            <input type="date" wire:model.live="sampaiTanggal" class="input-fancy px-3 py-2 rounded-xl text-xs outline-none w-full">
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            <button wire:click="setPeriode('bulan-ini')" class="text-xs font-bold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition whitespace-nowrap">Bulan Ini</button>
+            <button wire:click="setPeriode('tahun-ini')" class="text-xs font-bold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition whitespace-nowrap">Tahun Ini</button>
+            <button wire:click="setPeriode('semua')" class="text-xs font-bold px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition whitespace-nowrap">Semua</button>
+        </div>
+    </div>
+
+    {{-- Rekap per karyawan (periode terpilih) - klik kartu untuk mempersempit daftar ke orang itu --}}
+    @if($rekapTeknisi->isNotEmpty())
+    <div class="mb-6">
+        <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">Rekap per Karyawan (periode terpilih)</p>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            @foreach($rekapTeknisi as $rekap)
+                @php $aktif = (string) $filterTeknisiId === (string) $rekap['actor_id']; @endphp
+                <button type="button" wire:click="filterKeTeknisi({{ $rekap['actor_id'] }})"
+                        class="text-left rounded-2xl p-4 shadow-lg shadow-slate-200/50 dark:shadow-slate-800/20 transition {{ $aktif ? 'bg-slate-900 dark:bg-slate-600 text-white' : 'glass-card hover:-translate-y-0.5' }}">
+                    <p class="text-xs font-bold truncate {{ $aktif ? 'text-white' : 'dark:text-white' }}">{{ $rekap['actor_nama'] }}</p>
+                    <p class="text-2xl font-extrabold mt-1 {{ $aktif ? 'text-white' : 'dark:text-white' }}">{{ $rekap['jumlah'] }}</p>
+                    <p class="text-[10px] mt-0.5 {{ $aktif ? 'text-slate-300' : 'text-slate-400 dark:text-slate-500' }}">kunjungan • terakhir {{ \Illuminate\Support\Carbon::parse($rekap['terakhir'])->diffForHumans() }}</p>
+                </button>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
+    {{-- Pencarian + filter Teknisi/Kebun --}}
+    <div class="flex flex-col sm:flex-row gap-3 mb-4">
+        <div class="relative flex-1">
+            <input wire:model.live.debounce.300ms="search" placeholder="Cari kegiatan..." class="input-fancy w-full pl-10 pr-4 py-2.5 rounded-full text-[13px] outline-none">
+            <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+        <select wire:model.live="filterTeknisiId" class="input-fancy px-4 py-2.5 rounded-full text-xs outline-none">
+            <option value="">Semua Karyawan</option>
+            @foreach($teknisiList as $t)
+                <option value="{{ $t->id }}">{{ $t->nama }}</option>
+            @endforeach
+        </select>
+        <select wire:model.live="filterKebunId" class="input-fancy px-4 py-2.5 rounded-full text-xs outline-none">
+            <option value="">Semua Kebun</option>
+            @foreach($kebunList as $k)
+                <option value="{{ $k->id }}">{{ $k->nama_kebun }}</option>
+            @endforeach
+        </select>
+        @if($search || $filterTeknisiId || $filterKebunId)
+            <button wire:click="resetFilter" class="shrink-0 text-xs font-bold px-4 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition whitespace-nowrap">Reset Filter</button>
+        @endif
+    </div>
+
     <div class="glass-card rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-slate-800/20 border-slate-200/60 dark:border-slate-700/50 overflow-hidden">
         <div class="hidden md:block table-scroll">
             <div class="table-wrap">
@@ -59,7 +114,7 @@
                             </td>
                         </tr>
                         @empty
-                        <tr><td colspan="6" class="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada kunjungan tercatat.</td></tr>
+                        <tr><td colspan="6" class="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-500">{{ $search || $filterTeknisiId || $filterKebunId ? 'Tidak ada kunjungan yang cocok dengan filter ini.' : 'Belum ada kunjungan tercatat.' }}</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -85,13 +140,22 @@
                 </div>
             </div>
             @empty
-            <div class="p-10 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada kunjungan tercatat.</div>
+            <div class="p-10 text-center text-sm text-slate-400 dark:text-slate-500">{{ $search || $filterTeknisiId || $filterKebunId ? 'Tidak ada kunjungan yang cocok dengan filter ini.' : 'Belum ada kunjungan tercatat.' }}</div>
             @endforelse
         </div>
 
         @if($list->total() > 0)
         <div class="p-4 lg:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200/50 dark:border-slate-700/50">
-            <span class="text-xs text-slate-500 dark:text-slate-400">{{ $list->total() }} kunjungan tercatat</span>
+            <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <span>Tampilkan</span>
+                <select wire:model.live="perPage" class="input-fancy px-3 py-1.5 rounded-lg text-xs outline-none w-auto">
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+                <span>dari {{ $list->total() }} kunjungan</span>
+            </div>
             <div class="flex items-center gap-2">
                 <button wire:click="previousPage" @disabled($list->onFirstPage()) class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>

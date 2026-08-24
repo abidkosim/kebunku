@@ -10,6 +10,7 @@ use App\Livewire\Owner\Concerns\CachesOwnerData;
 use App\Models\Absensi;
 use App\Models\ActivityLog;
 use App\Models\Kebun;
+use App\Models\User;
 
 /**
  * Log kunjungan ke kebun (BUKAN absen jam-kerja masuk/pulang) - satu Teknisi datang
@@ -25,12 +26,22 @@ use App\Models\Kebun;
  * Kunjungan WAJIB berada dalam radius Kebun::RADIUS_ABSENSI_METER dari kebun terdekat
  * milik owner yang sudah punya koordinat - kalau owner belum mengisi koordinat kebun
  * manapun, fitur catat kunjungan terkunci total sampai itu diisi (lihat Kelola Kebun).
+ *
+ * Filter (search, per-Teknisi, per-Kebun, periode) + rekap per karyawan ditambahkan
+ * supaya rekap ini tetap terkelola begitu jumlah Teknisi & kunjungan bertambah banyak -
+ * tanpa itu daftar cuma jadi timeline panjang yang tidak praktis dipantau satu-satu.
  */
 class KelolaAbsensi extends Component
 {
     use RequiresOwnerAuth, WithFileUploads, WithPagination, CachesOwnerData;
 
     public $perPage = 10;
+
+    public $search = '';
+    public $filterTeknisiId = '';
+    public $filterKebunId = '';
+    public $dariTanggal;
+    public $sampaiTanggal;
 
     public $showModal = false;
     public $foto_upload;
@@ -49,6 +60,64 @@ class KelolaAbsensi extends Component
         if ($redirect = $this->requireRole(['owner', 'teknisi'])) {
             return $redirect;
         }
+
+        $this->dariTanggal = now()->startOfMonth()->toDateString();
+        $this->sampaiTanggal = now()->endOfMonth()->toDateString();
+    }
+
+    public function setPeriode(string $preset)
+    {
+        [$this->dariTanggal, $this->sampaiTanggal] = match ($preset) {
+            'bulan-ini' => [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()],
+            'tahun-ini' => [now()->startOfYear()->toDateString(), now()->endOfYear()->toDateString()],
+            'semua' => [null, null],
+            default => [$this->dariTanggal, $this->sampaiTanggal],
+        };
+        $this->resetPage();
+    }
+
+    public function filterKeTeknisi($teknisiId): void
+    {
+        // Diklik dari kartu rekap per karyawan - klik lagi pada karyawan yang sama
+        // untuk membatalkan filter (toggle), bukan cuma satu arah.
+        $this->filterTeknisiId = ((string) $this->filterTeknisiId === (string) $teknisiId) ? '' : $teknisiId;
+        $this->resetPage();
+    }
+
+    public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingPerPage()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilterTeknisiId()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedFilterKebunId()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedDariTanggal()
+    {
+        $this->resetPage();
+    }
+
+    public function updatedSampaiTanggal()
+    {
+        $this->resetPage();
+    }
+
+    public function resetFilter(): void
+    {
+        $this->reset(['search', 'filterTeknisiId', 'filterKebunId']);
+        $this->setPeriode('bulan-ini');
     }
 
     public function openCatat()
@@ -140,14 +209,67 @@ class KelolaAbsensi extends Component
         $this->dispatch('alert-success', message: 'Kunjungan berhasil dicatat');
     }
 
+    private function absensiQuery()
+    {
+        return Absensi::where('id_owners', $this->owner->id)
+            ->when($this->search, fn ($q) => $q->where('kegiatan', 'like', '%'.$this->search.'%'))
+            ->when($this->filterTeknisiId, fn ($q) => $q->where('actor_id', $this->filterTeknisiId))
+            ->when($this->filterKebunId, fn ($q) => $q->where('id_kebun', $this->filterKebunId))
+            ->when($this->dariTanggal, fn ($q) => $q->whereDate('created_at', '>=', $this->dariTanggal))
+            ->when($this->sampaiTanggal, fn ($q) => $q->whereDate('created_at', '<=', $this->sampaiTanggal));
+    }
+
     public function render()
     {
-        $cacheKey = 'absensi:list:page'.$this->getPage();
+        $cacheKey = 'absensi:list:page'.$this->getPage().':per'.$this->perPage
+            .':f'.md5($this->search.'|'.$this->filterTeknisiId.'|'.$this->filterKebunId.'|'.$this->dariTanggal.'|'.$this->sampaiTanggal);
+
         $list = $this->rememberOwnerCache(['absensi'], $cacheKey, 300, fn () =>
-            Absensi::where('id_owners', $this->owner->id)
+            $this->absensiQuery()
                 ->with('kebun:id,nama_kebun')
                 ->latest('id')
                 ->paginate($this->perPage)
+        );
+
+        // Rekap jumlah kunjungan per Teknisi UNTUK PERIODE TERPILIH (tanggal saja -
+        // sengaja tidak ikut filter Teknisi/Kebun/pencarian, supaya kartu ini selalu
+        // jadi gambaran menyeluruh buat membandingkan semua karyawan sekaligus, bukan
+        // ikut menyempit begitu salah satu karyawan sedang difilter). Klik satu kartu
+        // untuk mempersempit daftar di bawah ke orang itu (lihat filterKeTeknisi()).
+        $periodeSig = md5($this->dariTanggal.'|'.$this->sampaiTanggal);
+        // ->map(fn ($row) => [...]) di sini SENGAJA mengubah hasil query mentah (stdClass
+        // dari toBase()->selectRaw()) jadi array PHP biasa SEBELUM masuk cache. Tanpa ini,
+        // Collection<stdClass> yang di-cache gagal di-unserialize saat dibaca ulang dari
+        // Redis - stdClass tidak ada di whitelist config/cache.php's serializable_classes
+        // (persis gotcha yang sama dengan item 53h, ditemukan lewat verifikasi browser
+        // sungguhan). Menambahkan stdClass ke whitelist itu sendiri dihindari - itu class
+        // generik yang bisa dipakai object manapun, jadi risikonya lebih luas daripada
+        // mendaftarkan model spesifik. Pola array-sebelum-cache ini sama seperti yang
+        // sudah dipakai di Laporan::hitungRekap() untuk rekapKebun/rekapKeuangan.
+        $rekapTeknisi = $this->rememberOwnerCache(['absensi'], "absensi:rekap-teknisi:p{$periodeSig}", 300, fn () =>
+            collect(
+                Absensi::where('id_owners', $this->owner->id)
+                    ->when($this->dariTanggal, fn ($q) => $q->whereDate('created_at', '>=', $this->dariTanggal))
+                    ->when($this->sampaiTanggal, fn ($q) => $q->whereDate('created_at', '<=', $this->sampaiTanggal))
+                    ->toBase()
+                    ->selectRaw('actor_id, actor_nama, COUNT(*) as jumlah, MAX(created_at) as terakhir')
+                    ->groupBy('actor_id', 'actor_nama')
+                    ->orderByDesc('jumlah')
+                    ->get()
+            )->map(fn ($row) => [
+                'actor_id' => (int) $row->actor_id,
+                'actor_nama' => $row->actor_nama,
+                'jumlah' => (int) $row->jumlah,
+                'terakhir' => $row->terakhir,
+            ])
+        );
+
+        $teknisiList = $this->rememberOwnerCache(['users'], 'absensi:teknisi-dropdown', 300, fn () =>
+            User::where('id_owners', $this->owner->id)->where('role', 'teknisi')->orderBy('nama')->get(['id', 'nama'])
+        );
+
+        $kebunList = $this->rememberOwnerCache(['kebun'], 'kebun:dropdown', 300, fn () =>
+            Kebun::where('id_owners', $this->owner->id)->orderBy('nama_kebun')->get(['id', 'nama_kebun'])
         );
 
         // Cuma kebun yang SUDAH punya koordinat - inilah yang dipakai form Teknisi
@@ -171,6 +293,9 @@ class KelolaAbsensi extends Component
 
         return view('livewire.owner.kelola-absensi', [
             'list' => $list,
+            'rekapTeknisi' => $rekapTeknisi,
+            'teknisiList' => $teknisiList,
+            'kebunList' => $kebunList,
             'kebunKoordinat' => $kebunKoordinat,
             'logs' => $logs,
         ]);
