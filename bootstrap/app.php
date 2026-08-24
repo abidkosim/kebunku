@@ -18,6 +18,17 @@ return Application::configure(basePath: dirname(__DIR__))
             'sudah.login' => \App\Http\Middleware\PastikanSudahLogin::class,
             'belum.login' => \App\Http\Middleware\PastikanBelumLogin::class,
         ]);
+
+        // Produksi kini di depan Cloudflare Tunnel: pengunjung terhubung HTTPS ke edge
+        // Cloudflare, lalu cloudflared (proses LOKAL di VPS) meneruskannya ke Nginx lewat
+        // 127.0.0.1 - itu sebabnya cuma loopback yang perlu dipercaya di sini, BUKAN '*'
+        // (trust-all). Aman dipercaya karena source IP 127.0.0.1 pada koneksi TCP tidak
+        // bisa dipalsukan dari jaringan luar - siapa pun yang mengakses langsung lewat
+        // port 9980 publik (jalur lama, masih hidup paralel) datang dengan IP asli
+        // mereka sendiri, bukan 127.0.0.1, jadi X-Forwarded-* mereka tetap diabaikan.
+        // Tanpa ini Laravel salah kira semua trafik HTTP polos walau pengunjung sudah
+        // HTTPS ke Cloudflare - asset/redirect bisa salah skema (mixed content).
+        $middleware->trustProxies(at: ['127.0.0.1', '::1']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
