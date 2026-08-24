@@ -87,6 +87,78 @@
         @endif
     </div>
 
+    {{-- Kalender Kunjungan - HANYA UNTUK OWNER. Rekap yang sama dengan tabel di bawah,
+         cuma dalam bentuk grid satu bulan supaya pola kehadiran (siapa datang tanggal
+         berapa) langsung kelihatan sekilas tanpa perlu menggulir tabel panjang. Ikut
+         menghormati filter search/Teknisi/Kebun di atas, tapi navigasi bulannya sendiri
+         (tombol ‹ › + "Hari Ini") - independen dari filter periode "Bulan Ini/Tahun
+         Ini/Semua" yang mengatur tabel daftar. --}}
+    @if($actorType === 'owner')
+    <div class="glass-card rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-slate-800/20 border border-slate-200/60 dark:border-slate-700/50 overflow-hidden mb-6">
+        <div class="flex items-center justify-between gap-3 p-4 border-b border-slate-200/50 dark:border-slate-700/50">
+            <button type="button" wire:click="kalenderSebelumnya" aria-label="Bulan sebelumnya" class="w-8 h-8 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition flex items-center justify-center">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <div class="flex items-center gap-2 min-w-0">
+                <svg class="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                <p class="font-extrabold text-sm dark:text-white truncate">Kalender Kunjungan &bull; {{ $kalenderLabel }}</p>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <button type="button" wire:click="kalenderBulanIni" class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition whitespace-nowrap">Hari Ini</button>
+                <button type="button" wire:click="kalenderBerikutnya" aria-label="Bulan berikutnya" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="table-scroll">
+            <div class="min-w-[630px]">
+                <div class="grid grid-cols-7 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700/50">
+                    @foreach(['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'] as $hariLabel)
+                        <div class="p-2 text-center">{{ $hariLabel }}</div>
+                    @endforeach
+                </div>
+                @php
+                    // Palet warna badge per Teknisi, diulang lewat actor_id % jumlah warna -
+                    // cuma untuk bantu mata membedakan siapa-siapa saja yang absen di hari
+                    // yang sama saat "Semua Karyawan" dipilih, bukan penanda status apa pun.
+                    $paletKalender = [
+                        'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+                        'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+                        'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                        'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+                        'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+                        'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+                    ];
+                @endphp
+                @foreach($kalenderMinggu as $minggu)
+                <div class="grid grid-cols-7">
+                    @foreach($minggu as $hari)
+                        <div class="min-h-[84px] sm:min-h-[104px] p-1.5 border-b border-r border-slate-100 dark:border-slate-700/50 last:border-r-0 {{ $hari['dalamBulan'] ? '' : 'bg-slate-50/60 dark:bg-slate-900/40' }}">
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold {{ $hari['hariIni'] ? 'bg-slate-900 dark:bg-emerald-500 text-white' : ($hari['dalamBulan'] ? 'text-slate-600 dark:text-slate-300' : 'text-slate-300 dark:text-slate-600') }}">
+                                {{ $hari['tanggal'] }}
+                            </span>
+                            @if($hari['entri']->isNotEmpty())
+                            <div class="mt-1 space-y-1">
+                                @foreach($hari['entri']->take(3) as $entri)
+                                    <div class="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-md truncate {{ $paletKalender[$entri['actor_id'] % count($paletKalender)] }}" title="{{ $entri['actor_nama'] }} &bull; {{ $entri['jumlah'] }}x kunjungan">
+                                        {{ \Illuminate\Support\Str::limit($entri['actor_nama'], 9, '') }}{{ $entri['jumlah'] > 1 ? ' ×'.$entri['jumlah'] : '' }}
+                                    </div>
+                                @endforeach
+                                @if($hari['entri']->count() > 3)
+                                    <div class="text-[9px] text-slate-400 dark:text-slate-500 px-1.5">+{{ $hari['entri']->count() - 3 }} lainnya</div>
+                                @endif
+                            </div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+                @endforeach
+            </div>
+        </div>
+    </div>
+    @endif
+
     <div class="glass-card rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-slate-800/20 border-slate-200/60 dark:border-slate-700/50 overflow-hidden">
         <div class="hidden md:block table-scroll">
             <div class="table-wrap">

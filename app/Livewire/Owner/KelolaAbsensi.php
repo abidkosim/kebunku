@@ -11,6 +11,7 @@ use App\Models\Absensi;
 use App\Models\ActivityLog;
 use App\Models\Kebun;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 
 /**
  * Log kunjungan ke kebun (BUKAN absen jam-kerja masuk/pulang) - satu Teknisi datang
@@ -30,6 +31,12 @@ use App\Models\User;
  * Filter (search, per-Teknisi, per-Kebun, periode) + rekap per karyawan ditambahkan
  * supaya rekap ini tetap terkelola begitu jumlah Teknisi & kunjungan bertambah banyak -
  * tanpa itu daftar cuma jadi timeline panjang yang tidak praktis dipantau satu-satu.
+ *
+ * Kalender Kunjungan (Owner saja, item 59) menampilkan rekap yang sama dalam bentuk
+ * grid satu bulan (siapa absen di tanggal berapa) - lebih cepat dibaca sekilas
+ * dibanding menggulir tabel daftar untuk melihat pola kehadiran sebulan. Menghormati
+ * filter Teknisi/Kebun/pencarian yang sama, tapi punya navigasi bulan sendiri
+ * (kalenderBulan/kalenderTahun), terpisah dari dariTanggal/sampaiTanggal di atas.
  *
  * VISIBILITAS ANTAR-TEKNISI DIBATASI: seorang Teknisi HANYA melihat kunjungannya
  * sendiri - tidak bisa melihat siapa/kapan/kemana Teknisi lain absen. Owner tetap
@@ -51,6 +58,13 @@ class KelolaAbsensi extends Component
     public $dariTanggal;
     public $sampaiTanggal;
 
+    // Bulan yang sedang ditampilkan di Kalender Kunjungan (Owner saja) - SENGAJA
+    // terpisah dari dariTanggal/sampaiTanggal di atas (yang punya preset "Tahun
+    // Ini"/"Semua"), karena kalender selalu menampilkan TEPAT satu bulan lewat
+    // navigasi sebelumnya/berikutnya sendiri, bukan mengikuti rentang tanggal bebas.
+    public $kalenderBulan;
+    public $kalenderTahun;
+
     public $showModal = false;
     public $foto_upload;
     public $kegiatan_form;
@@ -71,6 +85,28 @@ class KelolaAbsensi extends Component
 
         $this->dariTanggal = now()->startOfMonth()->toDateString();
         $this->sampaiTanggal = now()->endOfMonth()->toDateString();
+        $this->kalenderBulan = now()->month;
+        $this->kalenderTahun = now()->year;
+    }
+
+    public function kalenderSebelumnya(): void
+    {
+        $geser = Carbon::createFromDate($this->kalenderTahun, $this->kalenderBulan, 1)->subMonthNoOverflow();
+        $this->kalenderBulan = $geser->month;
+        $this->kalenderTahun = $geser->year;
+    }
+
+    public function kalenderBerikutnya(): void
+    {
+        $geser = Carbon::createFromDate($this->kalenderTahun, $this->kalenderBulan, 1)->addMonthNoOverflow();
+        $this->kalenderBulan = $geser->month;
+        $this->kalenderTahun = $geser->year;
+    }
+
+    public function kalenderBulanIni(): void
+    {
+        $this->kalenderBulan = now()->month;
+        $this->kalenderTahun = now()->year;
     }
 
     public function setPeriode(string $preset)
@@ -133,6 +169,7 @@ class KelolaAbsensi extends Component
     {
         $this->reset(['search', 'filterTeknisiId', 'filterKebunId']);
         $this->setPeriode('bulan-ini');
+        $this->kalenderBulanIni();
     }
 
     public function openCatat()
@@ -224,13 +261,22 @@ class KelolaAbsensi extends Component
         $this->dispatch('alert-success', message: 'Kunjungan berhasil dicatat');
     }
 
+    /**
+     * Teknisi: paksa scope ke dirinya sendiri, ABAIKAN nilai filterTeknisiId apa pun
+     * (dropdown-nya memang tidak dirender untuk Teknisi, tapi ini yang jadi pertahanan
+     * sebenarnya kalau propertinya dipaksa lewat request Livewire palsu). Owner: filter
+     * bebas seperti biasa (termasuk "Semua Karyawan" = tidak difilter). Dipakai bersama
+     * oleh absensiQuery() (daftar+pagination) dan query Kalender Kunjungan di bawah,
+     * supaya keduanya konsisten menghormati filter yang sama.
+     */
+    private function filterAktorEfektif()
+    {
+        return $this->actorType === 'teknisi' ? $this->actorId : $this->filterTeknisiId;
+    }
+
     private function absensiQuery()
     {
-        // Teknisi: paksa scope ke dirinya sendiri, ABAIKAN nilai filterTeknisiId apa pun
-        // (dropdown-nya memang tidak dirender untuk Teknisi, tapi ini yang jadi
-        // pertahanan sebenarnya kalau propertinya dipaksa lewat request Livewire palsu).
-        // Owner: filter bebas seperti biasa (termasuk "Semua Karyawan" = tidak difilter).
-        $filterAktorId = $this->actorType === 'teknisi' ? $this->actorId : $this->filterTeknisiId;
+        $filterAktorId = $this->filterAktorEfektif();
 
         return Absensi::where('id_owners', $this->owner->id)
             ->when($this->search, fn ($q) => $q->where('kegiatan', 'like', '%'.$this->search.'%'))
@@ -300,6 +346,72 @@ class KelolaAbsensi extends Component
             ])
         );
 
+        // --- Kalender Kunjungan (Owner saja - lihat kelola-absensi.blade.php) ---
+        // Direkap PER HARI PER TEKNISI untuk satu bulan (kalenderBulan/kalenderTahun),
+        // menghormati filter search/Teknisi/Kebun yang sama seperti daftar di bawahnya
+        // (TIDAK ikut dariTanggal/sampaiTanggal - kalender punya navigasi bulan sendiri).
+        // filterAktorEfektif() dipakai LANGSUNG di kunci cache (bukan lewat $penandaAktor
+        // seperti list/rekap di atas) - untuk Teknisi nilainya sudah otomatis jadi
+        // actorId sendiri, jadi cache key ini sudah unik per-Teknisi tanpa perlu
+        // penanda tambahan (menghindari kelas bug kebocoran cache yang sama seperti
+        // item 58: pastikan setiap query yang ter-scope per-actor, cache key-nya juga
+        // ikut berbeda per-actor).
+        $filterAktorEfektif = $this->filterAktorEfektif();
+        $kalenderKey = 'absensi:kalender:'.$this->kalenderTahun.'-'.$this->kalenderBulan
+            .':f'.md5($this->search.'|'.$filterAktorEfektif.'|'.$this->filterKebunId);
+
+        // ->map(...) ke array biasa SEBELUM cache - alasan sama seperti $rekapTeknisi
+        // di atas (stdClass dari toBase()->selectRaw() gagal di-unserialize dari Redis).
+        $kalenderPerHari = $this->rememberOwnerCache(['absensi'], $kalenderKey, 300, fn () =>
+            collect(
+                Absensi::where('id_owners', $this->owner->id)
+                    ->whereYear('created_at', $this->kalenderTahun)
+                    ->whereMonth('created_at', $this->kalenderBulan)
+                    ->when($this->search, fn ($q) => $q->where('kegiatan', 'like', '%'.$this->search.'%'))
+                    ->when($filterAktorEfektif, fn ($q) => $q->where('actor_id', $filterAktorEfektif))
+                    ->when($this->filterKebunId, fn ($q) => $q->where('id_kebun', $this->filterKebunId))
+                    ->toBase()
+                    ->selectRaw('DATE(created_at) as tgl, actor_id, actor_nama, COUNT(*) as jumlah')
+                    ->groupBy('tgl', 'actor_id', 'actor_nama')
+                    ->orderBy('actor_nama')
+                    ->get()
+            )->map(fn ($row) => [
+                'tgl' => (string) $row->tgl,
+                'actor_id' => (int) $row->actor_id,
+                'actor_nama' => $row->actor_nama,
+                'jumlah' => (int) $row->jumlah,
+            ])->groupBy('tgl')
+        );
+
+        // Grid minggu dibangun FRESH tiap render (bukan ikut di-cache) - murni
+        // aritmetika tanggal lokal tanpa query tambahan, jadi tidak ada alasan
+        // menyimpan objek Carbon ke Redis (whitelist serializable_classes/item 53h -
+        // lebih aman array/scalar polos saja yang masuk cache).
+        $kalenderAwalBulan = Carbon::createFromDate($this->kalenderTahun, $this->kalenderBulan, 1)->startOfDay();
+        $kursor = $kalenderAwalBulan->copy()->startOfWeek(Carbon::MONDAY);
+        $gridAkhir = $kalenderAwalBulan->copy()->endOfMonth()->endOfWeek(Carbon::SUNDAY);
+
+        $kalenderMinggu = [];
+        while ($kursor->lte($gridAkhir)) {
+            $minggu = [];
+            for ($i = 0; $i < 7; $i++) {
+                $kunciHari = $kursor->format('Y-m-d');
+                $minggu[] = [
+                    'tgl' => $kunciHari,
+                    'tanggal' => $kursor->day,
+                    'dalamBulan' => $kursor->month === (int) $this->kalenderBulan,
+                    'hariIni' => $kursor->isToday(),
+                    'entri' => $kalenderPerHari->get($kunciHari, collect()),
+                ];
+                $kursor->addDay();
+            }
+            $kalenderMinggu[] = $minggu;
+        }
+
+        $namaBulan = [1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
+            7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'];
+        $kalenderLabel = $namaBulan[$this->kalenderBulan].' '.$this->kalenderTahun;
+
         // Dropdown "Filter Karyawan" cuma dipakai Blade untuk Owner (tidak dirender
         // untuk Teknisi sama sekali) - daftar nama semua Teknisi ini sendiri bukan data
         // rahasia (nama rekan kerja, bukan riwayat kunjungan mereka), jadi aman dikirim
@@ -338,6 +450,8 @@ class KelolaAbsensi extends Component
             'kebunList' => $kebunList,
             'kebunKoordinat' => $kebunKoordinat,
             'logs' => $logs,
+            'kalenderMinggu' => $kalenderMinggu,
+            'kalenderLabel' => $kalenderLabel,
         ]);
     }
 }

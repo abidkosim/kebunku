@@ -563,4 +563,129 @@ class AbsensiTest extends TestCase
             ->assertSee('Panen raya cabai')
             ->assertDontSee('Semprot hama');
     }
+
+    // ---------- Kalender Kunjungan (Owner saja, item 59) ----------
+
+    /** Sisipkan satu Absensi dengan created_at dipaksa ke tanggal tertentu (lihat pola di test_filter_periode_di_luar_rentang_tidak_muncul). */
+    private function buatAbsensiPadaTanggal(User $actor, \Illuminate\Support\Carbon $tanggal, string $kegiatan): Absensi
+    {
+        $absensi = Absensi::create([
+            'id_owners' => $this->owner->id, 'id_kebun' => $this->kebun->id, 'actor_type' => 'teknisi',
+            'actor_id' => $actor->id, 'actor_nama' => $actor->nama, 'foto' => 'absensi/kalender.jpg',
+            'lokasi_lat' => self::LAT_KEBUN, 'lokasi_lng' => self::LNG_KEBUN, 'kegiatan' => $kegiatan,
+        ]);
+        $absensi->timestamps = false;
+        $absensi->created_at = $tanggal;
+        $absensi->save();
+
+        return $absensi;
+    }
+
+    public function test_kalender_kunjungan_hanya_tampil_untuk_owner(): void
+    {
+        $this->withSession(['owner_id' => $this->owner->id]);
+        Livewire::test(KelolaAbsensi::class)->assertSee('Kalender Kunjungan');
+
+        // Ganti sesi Owner -> Teknisi di tengah SATU method test butuh DUA hal, bukan
+        // cuma satu: (1) 'owner_id' lama harus dibuang eksplisit - withSession() cuma
+        // MENAMBAH key baru ke session yang sudah ada, tidak menggantinya, jadi tanpa
+        // ini SesiAktor::selesaikan() akan tetap menemukan 'owner_id' duluan (urutan
+        // pengecekannya owner_id -> user_id) dan tetap resolve sebagai Owner; (2)
+        // SesiAktor scoped binding perlu dilupakan paksa juga (lihat catatan lengkap di
+        // test_tidak_ada_kebocoran_cache_antar_teknisi di atas) supaya identitas
+        // diselesaikan ULANG, bukan memakai hasil Owner yang sudah "menyelesaikan" lebih
+        // dulu di panggilan Livewire::test() pertama.
+        session()->forget('owner_id');
+        $this->app->forgetInstance(\App\Support\SesiAktor::class);
+        $this->withSession(['user_id' => $this->teknisi->id]);
+        Livewire::test(KelolaAbsensi::class)->assertDontSee('Kalender Kunjungan');
+    }
+
+    public function test_kalender_mengelompokkan_kunjungan_per_hari_dan_mengabaikan_bulan_lain(): void
+    {
+        $this->withSession(['owner_id' => $this->owner->id]);
+
+        $tglA = now()->startOfMonth()->addDays(4); // hari ke-5 bulan berjalan
+        $this->buatAbsensiPadaTanggal($this->teknisi, $tglA, 'Kunjungan pagi');
+        $this->buatAbsensiPadaTanggal($this->teknisi, $tglA, 'Kunjungan sore'); // hari sama, 2x
+        $this->buatAbsensiPadaTanggal($this->teknisi, now()->subMonthNoOverflow(), 'Kunjungan bulan lalu');
+
+        Livewire::test(KelolaAbsensi::class)
+            ->assertViewHas('kalenderMinggu', function ($minggu) use ($tglA) {
+                $semuaHari = collect($minggu)->flatten(1)->keyBy('tgl');
+                $hariA = $semuaHari->get($tglA->format('Y-m-d'));
+
+                if (!$hariA || $hariA['entri']->isEmpty()) {
+                    return false;
+                }
+                $entri = $hariA['entri']->first();
+
+                // 2 kunjungan di hari yang sama harus DIGABUNG jadi 1 entri berjumlah 2,
+                // bukan 2 badge terpisah untuk aktor yang sama.
+                if ($hariA['entri']->count() !== 1 || $entri['jumlah'] !== 2) {
+                    return false;
+                }
+
+                // Kunjungan bulan lalu TIDAK BOLEH ikut kehitung di grid bulan berjalan
+                // manapun (grid cuma menampilkan hari-hari overflow minggu di bulan ini).
+                $totalKunjunganDiGrid = collect($minggu)->flatten(1)
+                    ->sum(fn ($h) => $h['entri']->sum('jumlah'));
+
+                return $totalKunjunganDiGrid === 2;
+            });
+    }
+
+    public function test_kalender_menghormati_filter_teknisi(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['owner_id' => $this->owner->id]);
+
+        Livewire::test(KelolaAbsensi::class)
+            ->set('filterTeknisiId', $this->teknisiKedua->id)
+            ->assertViewHas('kalenderMinggu', function ($minggu) {
+                $semuaEntri = collect($minggu)->flatten(1)->pluck('entri')->flatten(1);
+
+                // Cuma Teknisi Kedua yang boleh muncul di grid - Teknisi Uji (2 kunjungan
+                // hari ini juga) harus tersaring habis begitu filter diaktifkan.
+                return $semuaEntri->isNotEmpty()
+                    && $semuaEntri->every(fn ($e) => $e['actor_id'] === $this->teknisiKedua->id);
+            });
+    }
+
+    public function test_kalender_navigasi_bulan_sebelumnya_dan_berikutnya(): void
+    {
+        $this->withSession(['owner_id' => $this->owner->id]);
+        $sekarang = now();
+        $bulanLalu = $sekarang->copy()->subMonthNoOverflow();
+        $bulanDepan = $sekarang->copy()->addMonthNoOverflow();
+
+        Livewire::test(KelolaAbsensi::class)
+            ->assertSet('kalenderBulan', $sekarang->month)
+            ->assertSet('kalenderTahun', $sekarang->year)
+            ->call('kalenderSebelumnya')
+            ->assertSet('kalenderBulan', $bulanLalu->month)
+            ->assertSet('kalenderTahun', $bulanLalu->year)
+            ->call('kalenderBerikutnya')
+            ->assertSet('kalenderBulan', $sekarang->month)
+            ->assertSet('kalenderTahun', $sekarang->year)
+            ->call('kalenderBerikutnya')
+            ->assertSet('kalenderBulan', $bulanDepan->month)
+            ->assertSet('kalenderTahun', $bulanDepan->year)
+            ->call('kalenderBulanIni')
+            ->assertSet('kalenderBulan', $sekarang->month)
+            ->assertSet('kalenderTahun', $sekarang->year);
+    }
+
+    public function test_reset_filter_juga_mengembalikan_kalender_ke_bulan_ini(): void
+    {
+        $this->withSession(['owner_id' => $this->owner->id]);
+        $sekarang = now();
+
+        Livewire::test(KelolaAbsensi::class)
+            ->call('kalenderSebelumnya')
+            ->call('kalenderSebelumnya')
+            ->call('resetFilter')
+            ->assertSet('kalenderBulan', $sekarang->month)
+            ->assertSet('kalenderTahun', $sekarang->year);
+    }
 }
