@@ -30,6 +30,14 @@ use App\Models\User;
  * Filter (search, per-Teknisi, per-Kebun, periode) + rekap per karyawan ditambahkan
  * supaya rekap ini tetap terkelola begitu jumlah Teknisi & kunjungan bertambah banyak -
  * tanpa itu daftar cuma jadi timeline panjang yang tidak praktis dipantau satu-satu.
+ *
+ * VISIBILITAS ANTAR-TEKNISI DIBATASI: seorang Teknisi HANYA melihat kunjungannya
+ * sendiri - tidak bisa melihat siapa/kapan/kemana Teknisi lain absen. Owner tetap
+ * melihat & memfilter semua karyawan (itu tujuan halaman manajemen ini). Pembatasan
+ * ini DITEGAKKAN DI QUERY (absensiQuery() & rekap di render()), bukan cuma
+ * menyembunyikan dropdown filter di Blade - dropdown "Filter Karyawan" memang tidak
+ * dirender untuk Teknisi, tapi kalau filterTeknisiId dipaksa lewat request Livewire
+ * yang dipalsukan, query tetap mengabaikannya dan memaksa scope ke actorId sendiri.
  */
 class KelolaAbsensi extends Component
 {
@@ -78,6 +86,13 @@ class KelolaAbsensi extends Component
 
     public function filterKeTeknisi($teknisiId): void
     {
+        // Cuma Owner yang boleh memfilter ke karyawan tertentu - Teknisi tidak pernah
+        // melihat kartu rekap karyawan lain untuk diklik (lihat kelola-absensi.blade.php),
+        // tapi dijaga juga di sini kalau method ini dipanggil paksa lewat request palsu.
+        if ($this->actorType !== 'owner') {
+            return;
+        }
+
         // Diklik dari kartu rekap per karyawan - klik lagi pada karyawan yang sama
         // untuk membatalkan filter (toggle), bukan cuma satu arah.
         $this->filterTeknisiId = ((string) $this->filterTeknisiId === (string) $teknisiId) ? '' : $teknisiId;
@@ -211,9 +226,15 @@ class KelolaAbsensi extends Component
 
     private function absensiQuery()
     {
+        // Teknisi: paksa scope ke dirinya sendiri, ABAIKAN nilai filterTeknisiId apa pun
+        // (dropdown-nya memang tidak dirender untuk Teknisi, tapi ini yang jadi
+        // pertahanan sebenarnya kalau propertinya dipaksa lewat request Livewire palsu).
+        // Owner: filter bebas seperti biasa (termasuk "Semua Karyawan" = tidak difilter).
+        $filterAktorId = $this->actorType === 'teknisi' ? $this->actorId : $this->filterTeknisiId;
+
         return Absensi::where('id_owners', $this->owner->id)
             ->when($this->search, fn ($q) => $q->where('kegiatan', 'like', '%'.$this->search.'%'))
-            ->when($this->filterTeknisiId, fn ($q) => $q->where('actor_id', $this->filterTeknisiId))
+            ->when($filterAktorId, fn ($q) => $q->where('actor_id', $filterAktorId))
             ->when($this->filterKebunId, fn ($q) => $q->where('id_kebun', $this->filterKebunId))
             ->when($this->dariTanggal, fn ($q) => $q->whereDate('created_at', '>=', $this->dariTanggal))
             ->when($this->sampaiTanggal, fn ($q) => $q->whereDate('created_at', '<=', $this->sampaiTanggal));
@@ -221,8 +242,19 @@ class KelolaAbsensi extends Component
 
     public function render()
     {
+        // Penanda actor ditambahkan ke KEDUA cache key di bawah, KHUSUS untuk Teknisi.
+        // KRUSIAL: tanpa ini, Teknisi A membuka halaman lebih dulu akan meng-cache hasil
+        // query di key yang IDENTIK dengan yang dipakai Teknisi B (karena filterTeknisiId
+        // selalu kosong untuk keduanya - dropdown-nya memang tidak dirender) - Teknisi B
+        // kemudian akan disodori HASIL CACHE MILIK TEKNISI A dari Redis yang sama.
+        // Ditemukan & diperbaiki saat menambahkan pembatasan visibilitas ini, bukan
+        // sekadar teori - persis kelas bug yang sama dengan "kebocoran cache lintas
+        // actor" yang harus selalu dicek tiap kali sebuah query jadi ter-scope per-user.
+        $penandaAktor = $this->actorType === 'teknisi' ? ':aktor'.$this->actorId : '';
+
         $cacheKey = 'absensi:list:page'.$this->getPage().':per'.$this->perPage
-            .':f'.md5($this->search.'|'.$this->filterTeknisiId.'|'.$this->filterKebunId.'|'.$this->dariTanggal.'|'.$this->sampaiTanggal);
+            .':f'.md5($this->search.'|'.$this->filterTeknisiId.'|'.$this->filterKebunId.'|'.$this->dariTanggal.'|'.$this->sampaiTanggal)
+            .$penandaAktor;
 
         $list = $this->rememberOwnerCache(['absensi'], $cacheKey, 300, fn () =>
             $this->absensiQuery()
@@ -232,10 +264,13 @@ class KelolaAbsensi extends Component
         );
 
         // Rekap jumlah kunjungan per Teknisi UNTUK PERIODE TERPILIH (tanggal saja -
-        // sengaja tidak ikut filter Teknisi/Kebun/pencarian, supaya kartu ini selalu
-        // jadi gambaran menyeluruh buat membandingkan semua karyawan sekaligus, bukan
+        // sengaja tidak ikut filter Kebun/pencarian, supaya kartu ini selalu jadi
+        // gambaran menyeluruh buat Owner membandingkan semua karyawan sekaligus, bukan
         // ikut menyempit begitu salah satu karyawan sedang difilter). Klik satu kartu
         // untuk mempersempit daftar di bawah ke orang itu (lihat filterKeTeknisi()).
+        // UNTUK TEKNISI: query ini JUGA di-scope ke dirinya sendiri (cuma akan
+        // menghasilkan 1 baris) - Blade menyembunyikan section kartu rekap untuk
+        // Teknisi sama sekali, tapi query-nya tetap dijaga di sini sebagai lapis kedua.
         $periodeSig = md5($this->dariTanggal.'|'.$this->sampaiTanggal);
         // ->map(fn ($row) => [...]) di sini SENGAJA mengubah hasil query mentah (stdClass
         // dari toBase()->selectRaw()) jadi array PHP biasa SEBELUM masuk cache. Tanpa ini,
@@ -246,9 +281,10 @@ class KelolaAbsensi extends Component
         // generik yang bisa dipakai object manapun, jadi risikonya lebih luas daripada
         // mendaftarkan model spesifik. Pola array-sebelum-cache ini sama seperti yang
         // sudah dipakai di Laporan::hitungRekap() untuk rekapKebun/rekapKeuangan.
-        $rekapTeknisi = $this->rememberOwnerCache(['absensi'], "absensi:rekap-teknisi:p{$periodeSig}", 300, fn () =>
+        $rekapTeknisi = $this->rememberOwnerCache(['absensi'], "absensi:rekap-teknisi:p{$periodeSig}{$penandaAktor}", 300, fn () =>
             collect(
                 Absensi::where('id_owners', $this->owner->id)
+                    ->when($this->actorType === 'teknisi', fn ($q) => $q->where('actor_id', $this->actorId))
                     ->when($this->dariTanggal, fn ($q) => $q->whereDate('created_at', '>=', $this->dariTanggal))
                     ->when($this->sampaiTanggal, fn ($q) => $q->whereDate('created_at', '<=', $this->sampaiTanggal))
                     ->toBase()
@@ -264,6 +300,10 @@ class KelolaAbsensi extends Component
             ])
         );
 
+        // Dropdown "Filter Karyawan" cuma dipakai Blade untuk Owner (tidak dirender
+        // untuk Teknisi sama sekali) - daftar nama semua Teknisi ini sendiri bukan data
+        // rahasia (nama rekan kerja, bukan riwayat kunjungan mereka), jadi aman dikirim
+        // ke siapa pun tanpa perlu di-scope per-actor.
         $teknisiList = $this->rememberOwnerCache(['users'], 'absensi:teknisi-dropdown', 300, fn () =>
             User::where('id_owners', $this->owner->id)->where('role', 'teknisi')->orderBy('nama')->get(['id', 'nama'])
         );

@@ -447,4 +447,120 @@ class AbsensiTest extends TestCase
             ->call('setPeriode', 'semua')
             ->assertSee('Kunjungan tahun lalu');
     }
+
+    // ---------- Visibilitas antar-Teknisi dibatasi (tiap Teknisi cuma lihat dirinya) ----------
+
+    public function test_teknisi_hanya_melihat_kunjungan_sendiri_di_daftar(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['user_id' => $this->teknisi->id]);
+
+        Livewire::test(KelolaAbsensi::class)
+            ->call('setPeriode', 'semua')
+            ->assertSee('Semprot hama')
+            ->assertSee('Cek tandon')
+            ->assertDontSee('Panen raya cabai')
+            ->assertDontSee('Teknisi Kedua');
+    }
+
+    public function test_teknisi_kedua_hanya_melihat_kunjungannya_sendiri(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['user_id' => $this->teknisiKedua->id]);
+
+        Livewire::test(KelolaAbsensi::class)
+            ->call('setPeriode', 'semua')
+            ->assertSee('Panen raya cabai')
+            ->assertDontSee('Semprot hama')
+            ->assertDontSee('Cek tandon');
+    }
+
+    public function test_teknisi_tidak_bisa_memaksa_lihat_kunjungan_teknisi_lain(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['user_id' => $this->teknisi->id]);
+
+        // Teknisi Uji memaksa filterTeknisiId ke ID Teknisi Kedua lewat request
+        // Livewire langsung (mensimulasikan devtools/request palsu - dropdown filter
+        // karyawan memang tidak dirender untuk Teknisi di Blade). Server harus
+        // mengabaikan nilai ini sepenuhnya, bukan cuma menyembunyikannya di UI.
+        Livewire::test(KelolaAbsensi::class)
+            ->call('setPeriode', 'semua')
+            ->set('filterTeknisiId', $this->teknisiKedua->id)
+            ->assertSee('Semprot hama')
+            ->assertDontSee('Panen raya cabai');
+    }
+
+    public function test_teknisi_tidak_melihat_rekap_karyawan_lain(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['user_id' => $this->teknisi->id]);
+
+        Livewire::test(KelolaAbsensi::class)
+            ->call('setPeriode', 'semua')
+            ->assertDontSee('Rekap per Karyawan')
+            ->assertDontSee('Teknisi Kedua');
+    }
+
+    public function test_filterKeTeknisi_ditolak_kalau_dipanggil_oleh_teknisi(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['user_id' => $this->teknisi->id]);
+
+        // Method ini normalnya cuma dipanggil dari klik kartu rekap, yang tidak pernah
+        // dirender untuk Teknisi - tapi kalau dipanggil paksa, harus tetap ditolak.
+        Livewire::test(KelolaAbsensi::class)
+            ->call('filterKeTeknisi', $this->teknisiKedua->id)
+            ->assertSet('filterTeknisiId', '');
+    }
+
+    public function test_tidak_ada_kebocoran_cache_antar_teknisi(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+
+        // Teknisi Uji buka halaman dulu - ini yang menulis ke cache Redis/array.
+        $this->withSession(['user_id' => $this->teknisi->id]);
+        Livewire::test(KelolaAbsensi::class)
+            ->call('setPeriode', 'semua')
+            ->assertSee('Semprot hama')
+            ->assertDontSee('Panen raya cabai');
+
+        // Teknisi Kedua buka halaman yang SAMA persis (periode, halaman, search kosong)
+        // tepat setelah itu - kalau cache key tidak dibedakan per-actor, dia akan
+        // disodori hasil cache MILIK Teknisi Uji dari langkah di atas.
+        //
+        // SesiAktor didaftarkan sebagai scoped binding (satu instance per request
+        // sungguhan) - dalam SATU method test PHPUnit, container tidak dibuat ulang
+        // antar panggilan Livewire::test(), jadi instance yang sudah "menyelesaikan"
+        // identitas dari withSession() pertama perlu dilupakan paksa supaya
+        // withSession() kedua ini benar-benar diselesaikan ulang.
+        $this->app->forgetInstance(\App\Support\SesiAktor::class);
+        $this->withSession(['user_id' => $this->teknisiKedua->id]);
+        Livewire::test(KelolaAbsensi::class)
+            ->call('setPeriode', 'semua')
+            ->assertSee('Panen raya cabai')
+            ->assertDontSee('Semprot hama')
+            ->assertDontSee('Cek tandon');
+    }
+
+    public function test_owner_tetap_bisa_melihat_dan_memfilter_semua_karyawan(): void
+    {
+        $this->buatDuaTeknisiDenganKunjungan();
+        $this->withSession(['owner_id' => $this->owner->id]);
+
+        // Tanpa filter: Owner melihat kunjungan KEDUA karyawan sekaligus.
+        Livewire::test(KelolaAbsensi::class)
+            ->call('setPeriode', 'semua')
+            ->assertSee('Semprot hama')
+            ->assertSee('Panen raya cabai')
+            ->assertSee('Rekap per Karyawan')
+            ->assertSee('Teknisi Kedua');
+
+        // Filter ke satu karyawan tetap berfungsi seperti sebelumnya (regresi item 55).
+        Livewire::test(KelolaAbsensi::class)
+            ->call('setPeriode', 'semua')
+            ->set('filterTeknisiId', $this->teknisiKedua->id)
+            ->assertSee('Panen raya cabai')
+            ->assertDontSee('Semprot hama');
+    }
 }

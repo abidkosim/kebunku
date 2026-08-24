@@ -8,7 +8,7 @@
             </h3>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 @if($actorType === 'teknisi')
-                    Catat tiap kunjungan ke kebun - foto & lokasi diambil otomatis saat itu juga.
+                    Catat tiap kunjungan ke kebun - foto & lokasi diambil otomatis saat itu juga. Riwayat di bawah cuma menampilkan kunjungan Anda sendiri.
                 @else
                     Riwayat kunjungan Teknisi ke kebun - foto, lokasi, dan waktu tercatat otomatis. Rekap ini bersifat lihat-saja.
                 @endif
@@ -36,8 +36,12 @@
         </div>
     </div>
 
-    {{-- Rekap per karyawan (periode terpilih) - klik kartu untuk mempersempit daftar ke orang itu --}}
-    @if($rekapTeknisi->isNotEmpty())
+    {{-- Rekap per karyawan (periode terpilih) - klik kartu untuk mempersempit daftar ke orang itu.
+         HANYA UNTUK OWNER - Teknisi tidak boleh melihat data karyawan lain sama sekali,
+         jadi buat mereka kartu perbandingan-antar-orang ini tidak relevan (query di
+         KelolaAbsensi::render() juga sudah di-scope ke diri sendiri untuk Teknisi,
+         ini lapis kedua di sisi tampilan). --}}
+    @if($actorType === 'owner' && $rekapTeknisi->isNotEmpty())
     <div class="mb-6">
         <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">Rekap per Karyawan (periode terpilih)</p>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -60,19 +64,25 @@
             <input wire:model.live.debounce.300ms="search" placeholder="Cari kegiatan..." class="input-fancy w-full pl-10 pr-4 py-2.5 rounded-full text-[13px] outline-none">
             <svg class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         </div>
+        @if($actorType === 'owner')
+        {{-- Filter per karyawan HANYA untuk Owner - Teknisi tidak boleh memilih untuk
+             melihat kunjungan karyawan lain sama sekali, jadi dropdown ini tidak pernah
+             ditampilkan ke mereka (server juga mengabaikan nilai ini kalau dipaksa
+             lewat request palsu - lihat KelolaAbsensi::absensiQuery()). --}}
         <select wire:model.live="filterTeknisiId" class="input-fancy px-4 py-2.5 rounded-full text-xs outline-none">
             <option value="">Semua Karyawan</option>
             @foreach($teknisiList as $t)
                 <option value="{{ $t->id }}">{{ $t->nama }}</option>
             @endforeach
         </select>
+        @endif
         <select wire:model.live="filterKebunId" class="input-fancy px-4 py-2.5 rounded-full text-xs outline-none">
             <option value="">Semua Kebun</option>
             @foreach($kebunList as $k)
                 <option value="{{ $k->id }}">{{ $k->nama_kebun }}</option>
             @endforeach
         </select>
-        @if($search || $filterTeknisiId || $filterKebunId)
+        @if($search || ($actorType === 'owner' && $filterTeknisiId) || $filterKebunId)
             <button wire:click="resetFilter" class="shrink-0 text-xs font-bold px-4 py-2.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition whitespace-nowrap">Reset Filter</button>
         @endif
     </div>
