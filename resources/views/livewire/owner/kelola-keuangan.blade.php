@@ -53,6 +53,7 @@
                             <th scope="col" class="px-6 py-4 text-left">TANGGAL</th>
                             <th scope="col" class="px-6 py-4 text-left">JENIS</th>
                             <th scope="col" class="px-6 py-4 text-left">KATEGORI</th>
+                            <th scope="col" class="px-6 py-4 text-left">CATATAN</th>
                             <th scope="col" class="px-6 py-4 text-left">JUMLAH</th>
                             <th scope="col" class="px-6 py-4 text-left">DICATAT OLEH</th>
                             <th scope="col" class="px-6 py-4 text-right">AKSI</th>
@@ -66,6 +67,13 @@
                                 <span class="text-[10px] font-bold px-2.5 py-1 rounded-full {{ $item->jenis === 'pemasukan' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }}">{{ ucfirst($item->jenis) }}</span>
                             </td>
                             <td class="px-6 py-4 align-middle text-sm font-bold dark:text-white">{{ $item->kategori }}</td>
+                            <td class="px-6 py-4 align-middle text-sm text-slate-600 dark:text-slate-300 max-w-xs">
+                                @if(filled($item->catatan))
+                                    <p class="line-clamp-2 break-words" title="{{ $item->catatan }}">{{ $item->catatan }}</p>
+                                @else
+                                    <span class="text-slate-300 dark:text-slate-600">-</span>
+                                @endif
+                            </td>
                             <td class="px-6 py-4 align-middle text-sm mono {{ $item->jenis === 'pemasukan' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">Rp {{ number_format($item->jumlah, 0, ',', '.') }}</td>
                             <td class="px-6 py-4 align-middle text-xs text-slate-500 dark:text-slate-400">{{ $item->dicatat_oleh }}</td>
                             <td class="px-6 py-4 align-middle">
@@ -76,7 +84,7 @@
                             </td>
                         </tr>
                         @empty
-                        <tr><td colspan="6" class="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada catatan keuangan di periode ini</td></tr>
+                        <tr><td colspan="7" class="px-6 py-10 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada catatan keuangan di periode ini</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -85,13 +93,16 @@
 
         <div class="md:hidden divide-y divide-slate-100/70 dark:divide-slate-700/50">
             @forelse($list as $item)
-            <div class="p-4 flex items-center justify-between gap-3">
+            <div class="p-4 flex items-start justify-between gap-3">
                 <div class="min-w-0">
                     <p class="text-sm font-bold dark:text-white flex items-center gap-2 flex-wrap">
                         {{ $item->kategori }}
                         <span class="text-[9px] font-bold px-2 py-0.5 rounded-full {{ $item->jenis === 'pemasukan' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }}">{{ ucfirst($item->jenis) }}</span>
                     </p>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ $item->tanggal->format('d M Y') }} • {{ $item->dicatat_oleh }}</p>
+                    @if(filled($item->catatan))
+                        <p class="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 break-words">{{ $item->catatan }}</p>
+                    @endif
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
                     <span class="text-sm font-bold {{ $item->jenis === 'pemasukan' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' }}">Rp {{ number_format($item->jumlah, 0, ',', '.') }}</span>

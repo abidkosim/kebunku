@@ -1239,3 +1239,8 @@ Permintaan: "debug total kenapa aplikasi kebunku/agrotech.my.id kok webnya berat
 	h. Belum dikerjakan (perlu dashboard Cloudflare, tidak bisa lewat SSH): matikan Web Analytics/RUM beacon bila tidak dipakai; Cache Rule untuk `/livewire*`. Kode poin c-f sudah `npm run build` lokal; menunggu "deploy ke git" + "deploy ke vps" (urutan: git pull -> route:clear -> composer -> npm ci && build -> migrate -> kebunku:buat-thumbnail -> cache -> restart fpm/queue/reverb).
 
 	i. **Deploy ke git (f5620ad) + VPS 2026-11-09 ~14:18 UTC.** Backup sebelum deploy: `~/backup-kebunku/kebunku-sebelum-thumbnail-*.sql.gz`. Jumlah baris semua tabel + FK identik sebelum/sesudah migrate (hanya `migrations` +1). `kebunku:buat-thumbnail` membuat 8/8 thumbnail Absensi (folder foto asli 50 MB -> thumbnail total 112 KB, per foto 5-8 MB -> 10-13 KB). Orientasi thumbnail dicek visual di browser: benar. Font di produksi terverifikasi hanya woff2 (tidak ada lagi .woff). Tidak ada ERROR baru di laravel.log sejak deploy.
+
+=====================================================================
+63. Keuangan: catatan transaksi tampil di daftar [SELESAI - 2026-11-09]
+=====================================================================
+Laporan user: "di bagian ini tidak ada deskripsinya" (halaman Keuangan). Kolom `catatan` sudah diisi lewat form Tambah/Edit dan tersimpan di DB, tapi daftar tidak pernah menampilkannya. Sekarang: kolom CATATAN di tabel desktop (line-clamp 2 baris, teks penuh di tooltip, "-" kalau kosong) dan baris catatan di kartu mobile (hanya muncul kalau terisi). Berlaku juga untuk portal Staff Keuangan (komponen sama). Halaman Laporan tidak diubah, karena isinya rekap per kategori, bukan per transaksi.
