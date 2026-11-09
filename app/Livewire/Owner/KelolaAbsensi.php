@@ -7,6 +7,7 @@ use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use App\Livewire\Owner\Concerns\RequiresOwnerAuth;
 use App\Livewire\Owner\Concerns\CachesOwnerData;
+use App\Jobs\BuatThumbnailAbsensi;
 use App\Models\Absensi;
 use App\Models\ActivityLog;
 use App\Models\Kebun;
@@ -234,7 +235,7 @@ class KelolaAbsensi extends Component
 
         $path = $this->foto_upload->store('absensi', 'public');
 
-        Absensi::create([
+        $absensi = Absensi::create([
             'id_owners' => $this->owner->id,
             'id_kebun' => $terdekat->kebun->id,
             'actor_type' => $this->actorType,
@@ -245,6 +246,9 @@ class KelolaAbsensi extends Component
             'lokasi_lng' => $this->lokasiLng_form,
             'kegiatan' => $this->kegiatan_form,
         ]);
+
+        // Thumbnail dibuat di background - foto kamera HP bisa 5-8 MB, jangan bikin staff menunggu.
+        BuatThumbnailAbsensi::dispatch($absensi->id);
 
         ActivityLog::catat(
             $this->actorType,

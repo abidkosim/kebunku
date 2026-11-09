@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
-import { bunny } from 'laravel-vite-plugin/fonts';
+import { local } from 'laravel-vite-plugin/fonts';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
@@ -15,12 +15,26 @@ export default defineConfig({
                 'resources/js/grafik.js',
             ],
             refresh: true,
+            // Font disimpan lokal (resources/fonts, subset latin dari Bunny) dan HANYA
+            // woff2. Provider bunny() sebelumnya menulis @font-face woff2 + woff terpisah
+            // untuk tiap bobot; browser memakai deklarasi terakhir (woff) sehingga setiap
+            // font terunduh dua kali dan preload woff2-nya terbuang percuma.
+            // Preload dibatasi ke 2 bobot yang paling banyak dipakai (font-bold & teks
+            // biasa) - sisanya tetap dimuat saat dibutuhkan (font-display: swap).
             fonts: [
-                bunny('Inter', {
-                    weights: [400, 500, 600, 700, 800],
+                local('Inter', {
+                    variants: [400, 500, 600, 700, 800].map((weight) => ({
+                        src: `resources/fonts/inter-${weight}.woff2`,
+                        weight,
+                    })),
+                    preload: [{ weight: 400 }, { weight: 700 }],
                 }),
-                bunny('JetBrains Mono', {
-                    weights: [400, 500],
+                local('JetBrains Mono', {
+                    variants: [400, 500].map((weight) => ({
+                        src: `resources/fonts/jetbrains-mono-${weight}.woff2`,
+                        weight,
+                    })),
+                    preload: false,
                 }),
             ],
         }),

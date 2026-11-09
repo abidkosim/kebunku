@@ -16,7 +16,7 @@ class Absensi extends Model
 
     protected $fillable = [
         'id_owners', 'id_kebun', 'actor_type', 'actor_id', 'actor_nama',
-        'foto', 'lokasi_lat', 'lokasi_lng', 'kegiatan',
+        'foto', 'thumbnail', 'lokasi_lat', 'lokasi_lng', 'kegiatan',
     ];
 
     protected $casts = [
@@ -37,6 +37,14 @@ class Absensi extends Model
     public function getFotoUrlAttribute(): string
     {
         return asset('storage/'.$this->foto);
+    }
+
+    /**
+     * Versi kecil untuk daftar. Selama thumbnail belum dibuat job, jatuh ke foto asli.
+     */
+    public function getThumbnailUrlAttribute(): string
+    {
+        return $this->thumbnail ? asset('storage/'.$this->thumbnail) : $this->foto_url;
     }
 
     public function getLokasiMapsUrlAttribute(): string

@@ -19,7 +19,7 @@
         <div wire:key="galeri-item-{{ $item->id }}" class="glass-card rounded-2xl overflow-hidden shadow-lg shadow-slate-200/50 dark:shadow-slate-800/20 group">
             <div wire:click="openView({{ $item->id }})" class="relative aspect-square bg-slate-100 dark:bg-slate-800 cursor-pointer overflow-hidden">
                 @if($item->jenis === 'foto')
-                    <img src="{{ $item->thumbnail_url ?? $item->file_url }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt="{{ $item->keterangan }}">
+                    <img src="{{ $item->thumbnail_url ?? $item->file_url }}" loading="lazy" decoding="async" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt="{{ $item->keterangan }}">
                 @else
                     <video src="{{ $item->file_url }}#t=0.1" class="w-full h-full object-cover" preload="metadata" muted playsinline></video>
                     <div class="absolute inset-0 flex items-center justify-center bg-slate-900/20">

@@ -178,7 +178,7 @@
                         <tr wire:key="absensi-row-{{ $item->id }}" class="group transition-all duration-200 dark:hover:bg-slate-800/30">
                             <td class="px-6 py-3 align-middle">
                                 <a href="{{ $item->foto_url }}" target="_blank" rel="noopener" class="block w-12 h-12 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0">
-                                    <img src="{{ $item->foto_url }}" class="w-full h-full object-cover" alt="Foto kunjungan {{ $item->actor_nama }}">
+                                    <img src="{{ $item->thumbnail_url }}" loading="lazy" decoding="async" class="w-full h-full object-cover" alt="Foto kunjungan {{ $item->actor_nama }}">
                                 </a>
                             </td>
                             <td class="px-6 py-4 align-middle">
@@ -207,7 +207,7 @@
             @forelse($list as $item)
             <div wire:key="absensi-card-{{ $item->id }}" class="p-4 flex items-start gap-3">
                 <a href="{{ $item->foto_url }}" target="_blank" rel="noopener" class="block w-14 h-14 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0">
-                    <img src="{{ $item->foto_url }}" class="w-full h-full object-cover" alt="Foto kunjungan {{ $item->actor_nama }}">
+                    <img src="{{ $item->thumbnail_url }}" loading="lazy" decoding="async" class="w-full h-full object-cover" alt="Foto kunjungan {{ $item->actor_nama }}">
                 </a>
                 <div class="min-w-0 flex-1">
                     <p class="text-sm font-bold dark:text-white truncate">{{ $item->actor_nama }}</p>
